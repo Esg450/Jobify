@@ -1,5 +1,5 @@
 import { Controller, Get, Inject } from '@nestjs/common';
-import { Public } from './auth/public.decorator.js';
+import { Public } from './auth/decorators.js';
 import { APP_CONFIG } from './config/config.module.js';
 import type { AppConfig } from './config/configuration.js';
 

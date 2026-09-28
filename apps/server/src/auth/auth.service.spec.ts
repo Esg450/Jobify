@@ -1,54 +1,121 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { ConflictException, ForbiddenException, UnauthorizedException } from '@nestjs/common';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { loadConfig } from '../config/configuration.js';
-import type { SettingsService } from '../settings/settings.service.js';
-import { AuthService, SESSION_TTL_MS } from './auth.service.js';
+import { createTestDatabase, type TestDatabase } from '../database/testing.js';
+import { SettingsService } from '../settings/settings.service.js';
+import { UsersService } from '../users/users.service.js';
+import { AuthService } from './auth.service.js';
+import { SESSION_TTL_MS, SessionsService } from './sessions.service.js';
 
-function inMemorySettings(): SettingsService {
-  const store = new Map<string, unknown>();
-  return {
-    get: (key: string) => Promise.resolve(store.get(key)),
-    set: (key: string, value: unknown) => Promise.resolve(void store.set(key, value)),
-  } as unknown as SettingsService;
-}
+const ACCOUNT = { username: 'admin', password: 'password123' };
 
 describe('AuthService', () => {
-  let auth: AuthService;
-  const settings = inMemorySettings();
+  let database: TestDatabase;
+  let sessions: SessionsService;
+  let users: UsersService;
+
+  const createAuth = (env: NodeJS.ProcessEnv = {}) => {
+    const settings = new SettingsService(database.db);
+    users = new UsersService(database.db, settings);
+    return new AuthService(loadConfig(env), users, sessions, settings);
+  };
 
   beforeEach(async () => {
-    auth = new AuthService(loadConfig({ JOBIFY_PASSWORD: 'hunter2' }), settings);
-    await auth.onModuleInit();
+    database = await createTestDatabase();
+    sessions = new SessionsService(database.db);
   });
 
-  it('checks the password', () => {
-    expect(auth.verifyPassword('hunter2')).toBe(true);
-    expect(auth.verifyPassword('hunter3')).toBe(false);
+  afterEach(() => database.client.close());
+
+  it('requires setup until the first admin exists, then only once', async () => {
+    const auth = createAuth();
+    await expect(auth.status(undefined)).resolves.toMatchObject({
+      setupRequired: true,
+      setupPasswordRequired: false,
+      user: null,
+    });
+
+    const token = await auth.setup(ACCOUNT);
+    await expect(auth.status(token)).resolves.toMatchObject({
+      setupRequired: false,
+      user: { username: 'admin', role: 'admin' },
+    });
+    await expect(auth.setup({ ...ACCOUNT, username: 'intruder' })).rejects.toBeInstanceOf(
+      ConflictException,
+    );
   });
 
-  it('accepts its own sessions until they expire', () => {
+  it('requires JOBIFY_PASSWORD to set up an upgraded instance', async () => {
+    const auth = createAuth({ JOBIFY_PASSWORD: 'old-secret' });
+    await expect(auth.status(undefined)).resolves.toMatchObject({ setupPasswordRequired: true });
+    await expect(auth.setup(ACCOUNT)).rejects.toBeInstanceOf(UnauthorizedException);
+    await expect(auth.setup({ ...ACCOUNT, setupPassword: 'wrong' })).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+    await expect(auth.setup({ ...ACCOUNT, setupPassword: 'old-secret' })).resolves.toEqual(
+      expect.any(String),
+    );
+  });
+
+  it('signs users in with their username and password', async () => {
+    const auth = createAuth();
+    await auth.setup(ACCOUNT);
+
+    const token = await auth.login({ username: 'ADMIN', password: 'password123' });
+    await expect(sessions.findUser(token)).resolves.toMatchObject({ username: 'admin' });
+    await expect(auth.login({ username: 'admin', password: 'nope' })).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+  });
+
+  it('only allows sign-up when an admin has opened registration', async () => {
+    const auth = createAuth();
+    await auth.setup(ACCOUNT);
+    const newcomer = { username: 'newcomer', password: 'password123' };
+
+    await expect(auth.register(newcomer)).rejects.toBeInstanceOf(ForbiddenException);
+    await auth.setRegistrationOpen(true);
+    const token = await auth.register(newcomer);
+    await expect(sessions.findUser(token)).resolves.toMatchObject({
+      username: 'newcomer',
+      role: 'user',
+    });
+  });
+});
+
+describe('SessionsService', () => {
+  let database: TestDatabase;
+  let sessions: SessionsService;
+  let userId: number;
+
+  beforeEach(async () => {
+    database = await createTestDatabase();
+    sessions = new SessionsService(database.db);
+    userId = await database.createUser('alice');
+  });
+
+  afterEach(() => database.client.close());
+
+  it('expires sessions', async () => {
     const now = Date.now();
-    const token = auth.createSession(now);
-    expect(auth.isValidSession(token, now)).toBe(true);
-    expect(auth.isValidSession(token, now + SESSION_TTL_MS + 1)).toBe(false);
+    const token = await sessions.create(userId, now);
+    await expect(sessions.findUser(token, now)).resolves.toMatchObject({ id: userId });
+    await expect(sessions.findUser(token, now + SESSION_TTL_MS + 1)).resolves.toBeNull();
+    await expect(sessions.findUser('forged-token', now)).resolves.toBeNull();
   });
 
-  it('rejects tampered or missing tokens', () => {
-    const [expiresAt, signature] = auth.createSession().split('.');
-    expect(auth.isValidSession(`${Number(expiresAt) + 1000}.${signature}`)).toBe(false);
-    expect(auth.isValidSession(undefined)).toBe(false);
-    expect(auth.isValidSession('garbage')).toBe(false);
+  it('stores only a hash of the token', async () => {
+    const token = await sessions.create(userId);
+    const { rows } = await database.client.execute('SELECT id FROM sessions');
+    expect(rows[0].id).not.toBe(token);
   });
 
-  it('invalidates sessions when the password changes', async () => {
-    const token = auth.createSession();
-    const changed = new AuthService(loadConfig({ JOBIFY_PASSWORD: 'new-password' }), settings);
-    await changed.onModuleInit();
-    expect(changed.isValidSession(token)).toBe(false);
-  });
+  it('revokes other sessions while keeping the current one', async () => {
+    const current = await sessions.create(userId);
+    const other = await sessions.create(userId);
+    await sessions.revokeAll(userId, current);
 
-  it('allows everything when no password is set', () => {
-    const open = new AuthService(loadConfig({}), settings);
-    expect(open.enabled).toBe(false);
-    expect(open.isValidSession(undefined)).toBe(true);
+    await expect(sessions.findUser(current)).resolves.not.toBeNull();
+    await expect(sessions.findUser(other)).resolves.toBeNull();
   });
 });

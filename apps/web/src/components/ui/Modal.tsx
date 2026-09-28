@@ -9,20 +9,28 @@ interface ModalProps {
   footer?: ReactNode;
 }
 
-/** A dialog built on the native <dialog> element, which handles focus and Escape for us. */
+/** A dialog built on the native <dialog> element, which traps focus and renders above the page. */
 export function Modal({ open, title, onClose, children, footer }: ModalProps) {
   const dialog = useRef<HTMLDialogElement>(null);
 
+  // Keep the native dialog in step with `open` on every render, in case the browser closed it
+  // without telling us.
   useEffect(() => {
     const element = dialog.current;
     if (!element) return;
     if (open && !element.open) element.showModal();
     if (!open && element.open) element.close();
-  }, [open]);
+  });
 
   return (
     <dialog
       ref={dialog}
+      // Escape fires `cancel`. Handle it ourselves so the parent's state stays the source of
+      // truth; the native `close` event is not delivered reliably in every browser.
+      onCancel={(event) => {
+        event.preventDefault();
+        onClose();
+      }}
       onClose={onClose}
       onClick={(event) => event.target === dialog.current && onClose()}
       className="m-auto w-[calc(100%-2rem)] max-w-lg rounded-xl bg-white p-0 text-zinc-900 shadow-xl ring-1 ring-zinc-200 backdrop:bg-zinc-950/40 backdrop:backdrop-blur-sm dark:bg-zinc-900 dark:text-zinc-100 dark:ring-zinc-800"

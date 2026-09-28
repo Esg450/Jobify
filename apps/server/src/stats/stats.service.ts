@@ -17,7 +17,7 @@ type DatedJob = Pick<Job, 'id' | 'title' | 'company' | 'status' | 'followUpOn' |
 export class StatsService {
   constructor(@Inject(DATABASE) private readonly db: Database) {}
 
-  async overview() {
+  async overview(userId: number) {
     const allJobs = await this.db
       .select({
         id: jobs.id,
@@ -29,7 +29,7 @@ export class StatsService {
         deadlineOn: jobs.deadlineOn,
       })
       .from(jobs)
-      .where(eq(jobs.archived, false));
+      .where(and(eq(jobs.userId, userId), eq(jobs.archived, false)));
 
     const byStatus = Object.fromEntries(JOB_STATUSES.map((status) => [status, 0])) as Record<
       JobStatus,
@@ -38,7 +38,7 @@ export class StatsService {
     for (const job of allJobs) byStatus[job.status]++;
 
     const applied = allJobs.filter((job) => job.appliedOn);
-    const respondedIds = await this.respondedJobIds();
+    const respondedIds = await this.respondedJobIds(userId);
     const responded = applied.filter(
       (job) => respondedIds.has(job.id) || RESPONDED_STATUSES.includes(job.status),
     );
@@ -50,21 +50,22 @@ export class StatsService {
       responseRate: applied.length ? responded.length / applied.length : null,
       byStatus,
       weekly: StatsService.weeklyApplications(applied.map((job) => job.appliedOn!)),
-      upcoming: await this.upcoming(allJobs),
-      recentActivity: await this.recentActivity(),
+      upcoming: await this.upcoming(userId, allJobs),
+      recentActivity: await this.recentActivity(userId),
     };
   }
 
   /** Jobs that reached a "responded" status at any point, even if later rejected. */
-  private async respondedJobIds(): Promise<Set<number>> {
+  private async respondedJobIds(userId: number): Promise<Set<number>> {
     const rows = await this.db
       .selectDistinct({ jobId: jobEvents.jobId })
       .from(jobEvents)
-      .where(inArray(jobEvents.toStatus, RESPONDED_STATUSES));
+      .innerJoin(jobs, eq(jobs.id, jobEvents.jobId))
+      .where(and(eq(jobs.userId, userId), inArray(jobEvents.toStatus, RESPONDED_STATUSES)));
     return new Set(rows.map((row) => row.jobId));
   }
 
-  private async upcoming(allJobs: DatedJob[]) {
+  private async upcoming(userId: number, allJobs: DatedJob[]) {
     const from = today();
     const until = new Date(Date.now() + UPCOMING_DAYS * DAY_MS).toISOString().slice(0, 10);
     const open = allJobs.filter((job) => ACTIVE_STATUSES.includes(job.status));
@@ -88,6 +89,7 @@ export class StatsService {
       .innerJoin(jobs, eq(jobs.id, jobEvents.jobId))
       .where(
         and(
+          eq(jobs.userId, userId),
           eq(jobEvents.type, 'interview'),
           gte(jobEvents.occurredAt, new Date(Date.now() - DAY_MS)),
         ),
@@ -111,7 +113,7 @@ export class StatsService {
     ].sort((a, b) => a.date.localeCompare(b.date));
   }
 
-  private recentActivity() {
+  private recentActivity(userId: number) {
     return this.db
       .select({
         id: jobEvents.id,
@@ -124,7 +126,7 @@ export class StatsService {
       })
       .from(jobEvents)
       .innerJoin(jobs, eq(jobs.id, jobEvents.jobId))
-      .where(lte(jobEvents.occurredAt, new Date()))
+      .where(and(eq(jobs.userId, userId), lte(jobEvents.occurredAt, new Date())))
       .orderBy(desc(jobEvents.occurredAt), desc(jobEvents.id))
       .limit(12);
   }

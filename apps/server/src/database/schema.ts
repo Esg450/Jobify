@@ -18,10 +18,51 @@ const timestamps = {
     .$onUpdate(() => new Date()),
 };
 
+export const USER_ROLES = ['admin', 'user'] as const;
+export type UserRole = (typeof USER_ROLES)[number];
+
+export interface UserProfile {
+  name: string;
+  headline: string;
+  resume: string;
+  preferences: string;
+}
+
+export const users = sqliteTable('users', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  /** Stored lowercase; usernames are case-insensitive. */
+  username: text('username').notNull().unique(),
+  displayName: text('display_name').notNull(),
+  passwordHash: text('password_hash').notNull(),
+  role: text('role', { enum: USER_ROLES }).notNull().default('user'),
+  /** Background the AI features use to personalize output. */
+  profile: text('profile', { mode: 'json' }).$type<Partial<UserProfile>>().notNull().default({}),
+  ...timestamps,
+});
+
+export const sessions = sqliteTable(
+  'sessions',
+  {
+    /** SHA-256 of the session token; the token itself only lives in the user's cookie. */
+    id: text('id').primaryKey(),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
+    createdAt: timestamps.createdAt,
+  },
+  (table) => [index('sessions_user_idx').on(table.userId)],
+);
+
 export const jobs = sqliteTable(
   'jobs',
   {
     id: integer('id').primaryKey({ autoIncrement: true }),
+    /**
+     * Nullable only because jobs created before accounts existed have no owner. They are
+     * assigned to the first admin when the instance is set up.
+     */
+    userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }),
     title: text('title').notNull(),
     company: text('company').notNull(),
     location: text('location'),
@@ -54,6 +95,7 @@ export const jobs = sqliteTable(
     ...timestamps,
   },
   (table) => [
+    index('jobs_user_idx').on(table.userId),
     index('jobs_status_idx').on(table.status),
     index('jobs_company_idx').on(table.company),
   ],
@@ -82,6 +124,7 @@ export const settings = sqliteTable('settings', {
   value: text('value', { mode: 'json' }).$type<unknown>().notNull(),
 });
 
+export type User = typeof users.$inferSelect;
 export type Job = typeof jobs.$inferSelect;
 export type NewJob = typeof jobs.$inferInsert;
 export type JobEvent = typeof jobEvents.$inferSelect;

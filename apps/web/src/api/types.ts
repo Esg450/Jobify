@@ -199,7 +199,26 @@ export interface Profile {
   preferences: string;
 }
 
+export type UserRole = 'admin' | 'user';
+
+export interface User {
+  id: number;
+  username: string;
+  displayName: string;
+  role: UserRole;
+  createdAt: string;
+}
+
+export interface UserInput {
+  username: string;
+  password: string;
+  displayName?: string;
+  role?: UserRole;
+}
+
 export interface AuthStatus {
-  enabled: boolean;
-  authenticated: boolean;
+  setupRequired: boolean;
+  setupPasswordRequired: boolean;
+  registrationOpen: boolean;
+  user: User | null;
 }

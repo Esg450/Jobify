@@ -42,7 +42,9 @@ container with an embedded SQLite database, so there is nothing else to set up.
   model or any OpenAI-compatible API to summarize postings, tidy up descriptions, draft cover
   letters, prepare for interviews and extract job details from any page.
 - **Your data, portable.** Export everything as JSON (and import it again) or as a CSV spreadsheet.
-- **Optional password** protection, a dark mode, and a layout that works on phones.
+- **Multiple users.** Everyone gets their own private jobs, timeline and profile. Admins add
+  people or open sign-up, and manage the shared AI provider.
+- A dark mode, and a layout that works on phones.
 
 ## Quick start
 
@@ -61,14 +63,13 @@ services:
     environment:
       PUID: 1000
       PGID: 1000
-      # JOBIFY_PASSWORD: change-me
 ```
 
 ```sh
 docker compose up -d
 ```
 
-Then open <http://localhost:3000>.
+Then open <http://localhost:3000>. The first person to open Jobify creates the admin account.
 
 ### Docker
 
@@ -113,16 +114,15 @@ database migrations run automatically. The running version is shown on the Setti
 
 All settings are optional environment variables.
 
-| Variable          | Default         | Description                                                                                 |
-| ----------------- | --------------- | ------------------------------------------------------------------------------------------- |
-| `PORT`            | `3000`          | Port the web server listens on.                                                             |
-| `DATA_DIR`        | `/data`         | Directory for the SQLite database.                                                          |
-| `PUID` / `PGID`   | `1000` / `1000` | User and group the container runs as. The data directory is handed to this user on startup. |
-| `JOBIFY_PASSWORD` | _unset_         | When set, Jobify asks for this password before showing anything.                            |
-| `AI_PROVIDER`     | _unset_         | Default AI provider: `anthropic`, `openai`, `gemini`, `ollama` or `openai_compatible`.      |
-| `AI_MODEL`        | _unset_         | Default model. Anthropic defaults to `claude-opus-5-5`; other providers need a model name.  |
-| `AI_API_KEY`      | _unset_         | API key for the provider.                                                                   |
-| `AI_BASE_URL`     | _unset_         | Custom API endpoint, e.g. `http://192.168.1.10:11434` for Ollama.                           |
+| Variable        | Default         | Description                                                                                 |
+| --------------- | --------------- | ------------------------------------------------------------------------------------------- |
+| `PORT`          | `3000`          | Port the web server listens on.                                                             |
+| `DATA_DIR`      | `/data`         | Directory for the SQLite database.                                                          |
+| `PUID` / `PGID` | `1000` / `1000` | User and group the container runs as. The data directory is handed to this user on startup. |
+| `AI_PROVIDER`   | _unset_         | Default AI provider: `anthropic`, `openai`, `gemini`, `ollama` or `openai_compatible`.      |
+| `AI_MODEL`      | _unset_         | Default model. Anthropic defaults to `claude-opus-5-5`; other providers need a model name.  |
+| `AI_API_KEY`    | _unset_         | API key for the provider.                                                                   |
+| `AI_BASE_URL`   | _unset_         | Custom API endpoint, e.g. `http://192.168.1.10:11434` for Ollama.                           |
 
 AI settings can also be managed from the **Settings** page; settings saved there take precedence
 over the environment variables.
@@ -154,18 +154,41 @@ provider configured, Jobify can extract the details from plain text too.
 Want to support another site? Importers are small, self-contained classes; see
 [CONTRIBUTING.md](CONTRIBUTING.md#adding-a-job-site-importer).
 
+## Users and accounts
+
+The first person to open a new Jobify creates the admin account. After that, admins can add
+people under **Settings → Users**, or turn on sign-up so people can create their own accounts.
+Each user's jobs, timeline and profile are private to them. The AI provider is shared and only
+admins can change it.
+
+**Upgrading from a version without accounts?** Your jobs are kept. On first launch, Jobify asks you
+to create the admin account and moves your existing jobs and profile into it. If you had set
+`JOBIFY_PASSWORD`, you'll need to enter it on that screen; this stops someone else from claiming
+your data first. You can remove the variable afterwards.
+
+**Forgot a password?** Admins can set a new one for any user under **Settings → Users**. If you
+are locked out of the only admin account, reset it from the server:
+
+```sh
+docker exec jobify node apps/server/dist/cli.js list-users
+docker exec jobify node apps/server/dist/cli.js reset-password <username>
+```
+
 ## Security
 
-- Jobify is built for a single user. If it is reachable from outside your home network, set
-  `JOBIFY_PASSWORD` and put it behind a reverse proxy with HTTPS.
-- The server fetches the URLs you import. Anyone who can use your Jobify instance can make it
-  request web pages, which is another reason to set a password on exposed instances.
-- API keys are stored in the database in your data directory and are never sent to the browser.
+- If Jobify is reachable from outside your home network, put it behind a reverse proxy with HTTPS
+  and leave sign-up turned off unless you need it.
+- On a brand-new instance, create the admin account straight away: until you do, whoever opens
+  Jobify first becomes the admin.
+- The server fetches the URLs you import. Anyone with an account can make it request web pages.
+- Passwords are hashed with scrypt, sessions are stored as hashes, and sign-in attempts are
+  rate-limited. API keys are stored in the database in your data directory and are never sent to
+  the browser.
 
 ## Backups
 
-Everything lives in `jobify.db` in the data directory; back up that directory, or use
-**Settings → Your data** to download a JSON backup or a CSV spreadsheet.
+Everything lives in `jobify.db` in the data directory, so back up that directory to back up every
+user. Each user can also download their own jobs as JSON or CSV under **Settings → Your data**.
 
 ## Development
 

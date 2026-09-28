@@ -1,7 +1,8 @@
 import { IsOptional, IsString, MaxLength } from 'class-validator';
+import type { UserProfile } from '../database/schema.js';
 
 /** Information about the user that AI features use to personalize output. */
-export class ProfileDto {
+export class ProfileDto implements Partial<UserProfile> {
   @IsOptional()
   @IsString()
   @MaxLength(200)
@@ -23,6 +24,4 @@ export class ProfileDto {
   preferences?: string;
 }
 
-export type Profile = Required<{ [K in keyof ProfileDto]: string }>;
-
-export const EMPTY_PROFILE: Profile = { name: '', headline: '', resume: '', preferences: '' };
+export const EMPTY_PROFILE: UserProfile = { name: '', headline: '', resume: '', preferences: '' };

@@ -35,7 +35,8 @@ apps/
       ai/            AI providers, prompts and AI-powered features
       stats/         Dashboard numbers
       backup/        JSON/CSV export and JSON import
-      auth/          Optional password protection
+      auth/          Sign-in, sessions and the guard that protects every route
+      users/         Accounts, profiles and user management
       settings/      Key/value settings stored in the database
       database/      Drizzle schema and connection
   web/               React single-page app

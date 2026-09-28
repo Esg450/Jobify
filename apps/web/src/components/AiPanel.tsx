@@ -1,7 +1,7 @@
 import { Check, Copy, RefreshCw, Sparkles } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router';
-import { useAiSettings, useRunAiTask } from '../api/hooks';
+import { useAiSettings, useCurrentUser, useRunAiTask } from '../api/hooks';
 import type { AiTask, Job } from '../api/types';
 import { AI_TASK_LABELS } from '../lib/labels';
 import { Markdown } from './Markdown';
@@ -28,6 +28,7 @@ const OUTPUT_TASKS: { task: Exclude<AiTask, 'description'>; field: keyof Job; hi
 
 export function AiPanel({ job }: { job: Job }) {
   const { data: settings, isPending } = useAiSettings();
+  const isAdmin = useCurrentUser().role === 'admin';
   const runTask = useRunAiTask(job.id);
   const [selected, setSelected] = useState<(typeof OUTPUT_TASKS)[number]['task']>('summary');
 
@@ -37,14 +38,20 @@ export function AiPanel({ job }: { job: Job }) {
       <EmptyState
         icon={<Sparkles className="size-6" />}
         title="Set up an AI provider"
-        description="Connect Anthropic, OpenAI, Gemini, Ollama or any OpenAI-compatible API to generate summaries, cover letters and interview prep."
+        description={
+          isAdmin
+            ? 'Connect Anthropic, OpenAI, Gemini, Ollama or any OpenAI-compatible API to generate summaries, cover letters and interview prep.'
+            : 'AI features are not set up yet. Ask an admin to connect an AI provider.'
+        }
         action={
-          <Link
-            to="/settings"
-            className="text-sm font-medium text-indigo-600 hover:underline dark:text-indigo-400"
-          >
-            Open settings
-          </Link>
+          isAdmin && (
+            <Link
+              to="/settings/ai"
+              className="text-sm font-medium text-indigo-600 hover:underline dark:text-indigo-400"
+            >
+              Open settings
+            </Link>
+          )
         }
       />
     );

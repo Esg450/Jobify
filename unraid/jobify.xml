@@ -14,7 +14,6 @@
   <Icon>https://raw.githubusercontent.com/esg450/jobify/main/apps/web/public/favicon.svg</Icon>
   <Config Name="Web UI port" Target="3000" Default="3000" Mode="tcp" Description="Port for the Jobify web interface." Type="Port" Display="always" Required="true" Mask="false">3000</Config>
   <Config Name="Data" Target="/data" Default="/mnt/user/appdata/jobify" Mode="rw" Description="Where the Jobify database is stored." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/jobify</Config>
-  <Config Name="Password" Target="JOBIFY_PASSWORD" Default="" Mode="" Description="Optional. Require this password to open Jobify. Recommended if Jobify is reachable from outside your network." Type="Variable" Display="always" Required="false" Mask="true"/>
   <Config Name="PUID" Target="PUID" Default="99" Mode="" Description="User ID that owns the data directory." Type="Variable" Display="advanced" Required="true" Mask="false">99</Config>
   <Config Name="PGID" Target="PGID" Default="100" Mode="" Description="Group ID that owns the data directory." Type="Variable" Display="advanced" Required="true" Mask="false">100</Config>
   <Config Name="AI provider" Target="AI_PROVIDER" Default="" Mode="" Description="Optional default AI provider: anthropic, openai, gemini, ollama or openai_compatible. Can also be set in the app's Settings page." Type="Variable" Display="advanced" Required="false" Mask="false"/>

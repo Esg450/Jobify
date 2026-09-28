@@ -1,5 +1,4 @@
-import type { Job } from '../database/schema.js';
-import type { Profile } from '../settings/profile.dto.js';
+import type { Job, UserProfile } from '../database/schema.js';
 import type { CompletionRequest } from './providers/ai-provider.js';
 
 export const AI_TASKS = ['summary', 'description', 'cover-letter', 'interview-prep'] as const;
@@ -33,7 +32,7 @@ function describeJob(job: Job): string {
   return `<job>\n${facts.join('\n')}\n\n<description>\n${job.description?.trim() || '(no description saved)'}\n</description>\n</job>`;
 }
 
-function describeProfile(profile: Profile): string | undefined {
+function describeProfile(profile: UserProfile): string | undefined {
   const parts = [
     profile.name && `Name: ${profile.name}`,
     profile.headline && `Headline: ${profile.headline}`,
@@ -97,7 +96,7 @@ Experiences from the candidate's background that map well to this role.`
   }`,
 };
 
-export function buildTaskPrompt(task: AiTask, job: Job, profile: Profile): CompletionRequest {
+export function buildTaskPrompt(task: AiTask, job: Job, profile: UserProfile): CompletionRequest {
   const candidate = describeProfile(profile);
   return {
     system: SYSTEM_PROMPT,

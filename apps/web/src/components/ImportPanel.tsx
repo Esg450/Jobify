@@ -111,7 +111,7 @@ export function ImportPanel({ onImported }: { onImported: (result: ImportResult)
           ) : (
             <p className="flex items-center gap-1.5 text-xs text-zinc-500">
               <Sparkles className="size-3.5" aria-hidden />
-              Set up an AI provider in Settings to extract details from any page.
+              With an AI provider set up, Jobify can extract details from any page.
             </p>
           )}
           <Button type="submit" variant="primary" loading={importJob.isPending}>

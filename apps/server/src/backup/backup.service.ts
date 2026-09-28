@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { asc } from 'drizzle-orm';
+import { asc, eq } from 'drizzle-orm';
 import { DATABASE, type Database } from '../database/database.module.js';
 import { jobEvents, jobs, type Job } from '../database/schema.js';
 import { BACKUP_VERSION, type BackupDto } from './backup.dto.js';
@@ -36,16 +36,22 @@ const CSV_COLUMNS: (keyof Job)[] = [
 export class BackupService {
   constructor(@Inject(DATABASE) private readonly db: Database) {}
 
-  async exportJson() {
+  async exportJson(userId: number) {
     const [allJobs, allEvents] = await Promise.all([
-      this.db.select().from(jobs).orderBy(asc(jobs.id)),
-      this.db.select().from(jobEvents).orderBy(asc(jobEvents.occurredAt)),
+      this.db.select().from(jobs).where(eq(jobs.userId, userId)).orderBy(asc(jobs.id)),
+      this.db
+        .select({ event: jobEvents })
+        .from(jobEvents)
+        .innerJoin(jobs, eq(jobs.id, jobEvents.jobId))
+        .where(eq(jobs.userId, userId))
+        .orderBy(asc(jobEvents.occurredAt))
+        .then((rows) => rows.map((row) => row.event)),
     ]);
 
     return {
       version: BACKUP_VERSION,
       exportedAt: new Date().toISOString(),
-      jobs: allJobs.map(({ id, updatedAt, ...job }) => ({
+      jobs: allJobs.map(({ id, userId, updatedAt, ...job }) => ({
         ...job,
         events: allEvents
           .filter((event) => event.jobId === id)
@@ -54,18 +60,22 @@ export class BackupService {
     };
   }
 
-  async exportCsv(): Promise<string> {
-    const allJobs = await this.db.select().from(jobs).orderBy(asc(jobs.id));
+  async exportCsv(userId: number): Promise<string> {
+    const allJobs = await this.db
+      .select()
+      .from(jobs)
+      .where(eq(jobs.userId, userId))
+      .orderBy(asc(jobs.id));
     return toCsv(allJobs, CSV_COLUMNS);
   }
 
-  /** Adds every job in the backup as a new job. Existing jobs are left untouched. */
-  async import(backup: BackupDto): Promise<{ imported: number }> {
+  /** Adds every job in the backup to the user's jobs. Existing jobs are left untouched. */
+  async import(userId: number, backup: BackupDto): Promise<{ imported: number }> {
     await this.db.transaction(async (tx) => {
       for (const { events = [], createdAt, ...job } of backup.jobs) {
         const [inserted] = await tx
           .insert(jobs)
-          .values({ ...job, ...(createdAt && { createdAt: new Date(createdAt) }) })
+          .values({ ...job, userId, ...(createdAt && { createdAt: new Date(createdAt) }) })
           .returning({ id: jobs.id });
         if (events.length === 0) continue;
         const rows = events.map((event) => ({

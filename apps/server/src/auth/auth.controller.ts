@@ -7,55 +7,67 @@ import {
   Post,
   Req,
   Res,
-  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
 import { ThrottlerGuard } from '@nestjs/throttler';
-import { IsString, MaxLength } from 'class-validator';
 import type { Request, Response } from 'express';
-import { AuthService, SESSION_COOKIE, SESSION_TTL_MS } from './auth.service.js';
-import { Public } from './public.decorator.js';
-
-class LoginDto {
-  @IsString()
-  @MaxLength(500)
-  password!: string;
-}
+import { LoginDto, RegisterDto, SetupDto } from './auth.dto.js';
+import { AuthService } from './auth.service.js';
+import { Public } from './decorators.js';
+import { clearSessionCookie, readSessionCookie, setSessionCookie } from './session-cookie.js';
+import { SessionsService } from './sessions.service.js';
 
 @Public()
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly auth: AuthService) {}
+  constructor(
+    private readonly auth: AuthService,
+    private readonly sessions: SessionsService,
+  ) {}
 
   @Get('status')
   status(@Req() request: Request) {
-    const token = (request.cookies as Record<string, string> | undefined)?.[SESSION_COOKIE];
-    return { enabled: this.auth.enabled, authenticated: this.auth.isValidSession(token) };
+    return this.auth.status(readSessionCookie(request));
+  }
+
+  @Post('setup')
+  @UseGuards(ThrottlerGuard)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async setup(
+    @Body() dto: SetupDto,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    setSessionCookie(request, response, await this.auth.setup(dto));
   }
 
   @Post('login')
   @UseGuards(ThrottlerGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
-  login(
+  async login(
     @Body() dto: LoginDto,
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ) {
-    if (!this.auth.enabled) return;
-    if (!this.auth.verifyPassword(dto.password))
-      throw new UnauthorizedException('Incorrect password');
+    setSessionCookie(request, response, await this.auth.login(dto));
+  }
 
-    response.cookie(SESSION_COOKIE, this.auth.createSession(), {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: request.secure,
-      maxAge: SESSION_TTL_MS,
-    });
+  @Post('register')
+  @UseGuards(ThrottlerGuard)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async register(
+    @Body() dto: RegisterDto,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    setSessionCookie(request, response, await this.auth.register(dto));
   }
 
   @Post('logout')
   @HttpCode(HttpStatus.NO_CONTENT)
-  logout(@Res({ passthrough: true }) response: Response) {
-    response.clearCookie(SESSION_COOKIE);
+  async logout(@Req() request: Request, @Res({ passthrough: true }) response: Response) {
+    const token = readSessionCookie(request);
+    if (token) await this.sessions.revoke(token);
+    clearSessionCookie(response);
   }
 }

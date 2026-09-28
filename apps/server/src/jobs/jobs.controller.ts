@@ -11,6 +11,8 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
+import { CurrentUser } from '../auth/decorators.js';
+import type { PublicUser } from '../users/users.service.js';
 import { CreateJobDto } from './dto/create-job.dto.js';
 import { CreateJobEventDto, UpdateJobEventDto } from './dto/job-event.dto.js';
 import { QueryJobsDto } from './dto/query-jobs.dto.js';
@@ -22,51 +24,61 @@ export class JobsController {
   constructor(private readonly jobs: JobsService) {}
 
   @Get()
-  list(@Query() query: QueryJobsDto) {
-    return this.jobs.list(query);
+  list(@CurrentUser() user: PublicUser, @Query() query: QueryJobsDto) {
+    return this.jobs.list(user.id, query);
   }
 
   @Get(':id')
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.jobs.findOne(id);
+  findOne(@CurrentUser() user: PublicUser, @Param('id', ParseIntPipe) id: number) {
+    return this.jobs.findOne(user.id, id);
   }
 
   @Post()
-  create(@Body() dto: CreateJobDto) {
-    return this.jobs.create(dto);
+  create(@CurrentUser() user: PublicUser, @Body() dto: CreateJobDto) {
+    return this.jobs.create(user.id, dto);
   }
 
   @Patch(':id')
-  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateJobDto) {
-    return this.jobs.update(id, dto);
+  update(
+    @CurrentUser() user: PublicUser,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateJobDto,
+  ) {
+    return this.jobs.update(user.id, id, dto);
   }
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.jobs.remove(id);
+  remove(@CurrentUser() user: PublicUser, @Param('id', ParseIntPipe) id: number) {
+    return this.jobs.remove(user.id, id);
   }
 
   @Post(':id/events')
-  addEvent(@Param('id', ParseIntPipe) id: number, @Body() dto: CreateJobEventDto) {
-    return this.jobs.addEvent(id, dto);
+  addEvent(
+    @CurrentUser() user: PublicUser,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: CreateJobEventDto,
+  ) {
+    return this.jobs.addEvent(user.id, id, dto);
   }
 
   @Patch(':id/events/:eventId')
   updateEvent(
+    @CurrentUser() user: PublicUser,
     @Param('id', ParseIntPipe) id: number,
     @Param('eventId', ParseIntPipe) eventId: number,
     @Body() dto: UpdateJobEventDto,
   ) {
-    return this.jobs.updateEvent(id, eventId, dto);
+    return this.jobs.updateEvent(user.id, id, eventId, dto);
   }
 
   @Delete(':id/events/:eventId')
   @HttpCode(HttpStatus.NO_CONTENT)
   removeEvent(
+    @CurrentUser() user: PublicUser,
     @Param('id', ParseIntPipe) id: number,
     @Param('eventId', ParseIntPipe) eventId: number,
   ) {
-    return this.jobs.removeEvent(id, eventId);
+    return this.jobs.removeEvent(user.id, id, eventId);
   }
 }

@@ -1,31 +1,38 @@
 import {
+  ForbiddenException,
   Injectable,
   UnauthorizedException,
   type CanActivate,
   type ExecutionContext,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import type { Request } from 'express';
-import { AuthService, SESSION_COOKIE } from './auth.service.js';
-import { IS_PUBLIC } from './public.decorator.js';
+import { ADMIN_ONLY, IS_PUBLIC, type AuthenticatedRequest } from './decorators.js';
+import { readSessionCookie } from './session-cookie.js';
+import { SessionsService } from './sessions.service.js';
 
+/** Applied globally: every route requires a session unless marked @Public(). */
 @Injectable()
 export class AuthGuard implements CanActivate {
   constructor(
-    private readonly auth: AuthService,
+    private readonly sessions: SessionsService,
     private readonly reflector: Reflector,
   ) {}
 
-  canActivate(context: ExecutionContext): boolean {
-    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
-    if (isPublic) return true;
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    const targets = [context.getHandler(), context.getClass()];
+    if (this.reflector.getAllAndOverride<boolean>(IS_PUBLIC, targets)) return true;
 
-    const request = context.switchToHttp().getRequest<Request>();
-    const token = (request.cookies as Record<string, string> | undefined)?.[SESSION_COOKIE];
-    if (!this.auth.isValidSession(token)) throw new UnauthorizedException('Sign in required');
+    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
+    const token = readSessionCookie(request);
+    const user = await this.sessions.findUser(token);
+    if (!user || !token) throw new UnauthorizedException('Sign in required');
+
+    if (this.reflector.getAllAndOverride<boolean>(ADMIN_ONLY, targets) && user.role !== 'admin') {
+      throw new ForbiddenException('Only admins can do that');
+    }
+
+    request.user = user;
+    request.sessionToken = token;
     return true;
   }
 }

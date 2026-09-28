@@ -11,8 +11,11 @@ export interface AppConfig {
   host: string;
   dataDir: string;
   staticDir: string;
-  /** When set, the UI and API require this password. */
-  password: string | undefined;
+  /**
+   * The password from the single-user version. Only used to confirm the first-run setup of an
+   * upgraded instance, so that whoever reaches it first can't claim the existing data.
+   */
+  legacyPassword: string | undefined;
   ai: {
     provider: string | undefined;
     model: string | undefined;
@@ -28,7 +31,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     host: env.HOST ?? '0.0.0.0',
     dataDir: path.resolve(env.DATA_DIR ?? path.join(SERVER_ROOT, 'data')),
     staticDir: path.resolve(env.STATIC_DIR ?? path.join(SERVER_ROOT, '../web/dist')),
-    password: env.JOBIFY_PASSWORD || undefined,
+    legacyPassword: env.JOBIFY_PASSWORD || undefined,
     ai: {
       provider: env.AI_PROVIDER || undefined,
       model: env.AI_MODEL || undefined,

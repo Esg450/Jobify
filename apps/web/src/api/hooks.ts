@@ -15,6 +15,8 @@ import type {
   JobSummary,
   Profile,
   Stats,
+  User,
+  UserInput,
 } from './types';
 
 export const queryKeys = {
@@ -28,6 +30,8 @@ export const queryKeys = {
   importSites: ['import', 'sites'] as const,
   auth: ['auth'] as const,
   health: ['health'] as const,
+  users: ['users'] as const,
+  registration: ['users', 'registration'] as const,
 };
 
 export function useHealth() {
@@ -45,19 +49,124 @@ export function useAuthStatus() {
   });
 }
 
-export function useLogin() {
+/** The signed-in user. Only use inside the app shell, which renders once someone is signed in. */
+export function useCurrentUser(): User {
+  const { data } = useAuthStatus();
+  if (!data?.user) throw new Error('useCurrentUser was called while signed out');
+  return data.user;
+}
+
+/**
+ * Drops everything cached for the previous user and reloads the auth status, so one person's
+ * jobs never flash on screen for the next person who signs in on the same browser.
+ */
+function useResetSession() {
   const queryClient = useQueryClient();
+  return () => {
+    queryClient.removeQueries({ predicate: (query) => query.queryKey[0] !== queryKeys.auth[0] });
+    return queryClient.invalidateQueries({ queryKey: queryKeys.auth });
+  };
+}
+
+export function useSetup() {
+  const resetSession = useResetSession();
   return useMutation({
-    mutationFn: (password: string) => api.post('/auth/login', { password }),
-    onSuccess: () => queryClient.invalidateQueries(),
+    mutationFn: (input: Omit<UserInput, 'role'> & { setupPassword?: string }) =>
+      api.post('/auth/setup', input),
+    onSuccess: resetSession,
+  });
+}
+
+export function useLogin() {
+  const resetSession = useResetSession();
+  return useMutation({
+    mutationFn: (credentials: { username: string; password: string }) =>
+      api.post('/auth/login', credentials),
+    onSuccess: resetSession,
+  });
+}
+
+export function useRegister() {
+  const resetSession = useResetSession();
+  return useMutation({
+    mutationFn: (input: Omit<UserInput, 'role'>) => api.post('/auth/register', input),
+    onSuccess: resetSession,
   });
 }
 
 export function useLogout() {
-  const queryClient = useQueryClient();
+  const resetSession = useResetSession();
   return useMutation({
     mutationFn: () => api.post('/auth/logout'),
+    onSuccess: resetSession,
+  });
+}
+
+export function useUpdateAccount() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (changes: { displayName: string }) => api.patch<User>('/account', changes),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.auth }),
+  });
+}
+
+export function useChangePassword() {
+  return useMutation({
+    mutationFn: (input: { currentPassword: string; password: string }) =>
+      api.put('/account/password', input),
+  });
+}
+
+export function useUsers() {
+  return useQuery({ queryKey: queryKeys.users, queryFn: () => api.get<User[]>('/users') });
+}
+
+function useUsersChanged() {
+  const queryClient = useQueryClient();
+  return () => {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.users });
+    // The signed-in admin may have edited their own account.
+    void queryClient.invalidateQueries({ queryKey: queryKeys.auth });
+  };
+}
+
+export function useCreateUser() {
+  const changed = useUsersChanged();
+  return useMutation({
+    mutationFn: (input: UserInput) => api.post<User>('/users', input),
+    onSuccess: changed,
+  });
+}
+
+export function useUpdateUser() {
+  const changed = useUsersChanged();
+  return useMutation({
+    mutationFn: ({ id, changes }: { id: number; changes: Partial<UserInput> }) =>
+      api.patch<User>(`/users/${id}`, changes),
+    onSuccess: changed,
+  });
+}
+
+export function useDeleteUser() {
+  const changed = useUsersChanged();
+  return useMutation({
+    mutationFn: (id: number) => api.delete(`/users/${id}`),
+    onSuccess: changed,
+  });
+}
+
+export function useRegistration() {
+  return useQuery({
+    queryKey: queryKeys.registration,
+    queryFn: () => api.get<{ open: boolean }>('/users/registration'),
+  });
+}
+
+export function useSetRegistration() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (open: boolean) => api.put<{ open: boolean }>('/users/registration', { open }),
+    onSuccess: (data) => queryClient.setQueryData(queryKeys.registration, data),
   });
 }
 
@@ -193,14 +302,14 @@ export function useRunAiTask(jobId: number) {
 export function useProfile() {
   return useQuery({
     queryKey: queryKeys.profile,
-    queryFn: () => api.get<Profile>('/settings/profile'),
+    queryFn: () => api.get<Profile>('/account/profile'),
   });
 }
 
 export function useUpdateProfile() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (profile: Partial<Profile>) => api.put<Profile>('/settings/profile', profile),
+    mutationFn: (profile: Partial<Profile>) => api.put<Profile>('/account/profile', profile),
     onSuccess: (profile) => queryClient.setQueryData(queryKeys.profile, profile),
   });
 }

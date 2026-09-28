@@ -4,6 +4,7 @@ import type { AppConfig } from '../config/configuration.js';
 import type { JobDraft } from '../importers/job-draft.js';
 import { JobsService, type JobWithEvents } from '../jobs/jobs.service.js';
 import { SettingsService } from '../settings/settings.service.js';
+import { UsersService } from '../users/users.service.js';
 import {
   AI_PROVIDER_IDS,
   type AiProviderId,
@@ -24,6 +25,7 @@ export class AiService {
     @Inject(APP_CONFIG) private readonly config: AppConfig,
     private readonly settings: SettingsService,
     private readonly jobs: JobsService,
+    private readonly users: UsersService,
   ) {}
 
   /** Settings saved in the UI take precedence over environment variables. */
@@ -70,15 +72,15 @@ export class AiService {
   }
 
   /** Runs an AI task for a job and saves the result on the job. */
-  async runTask(jobId: number, task: AiTask): Promise<JobWithEvents> {
-    const job = await this.jobs.findOne(jobId);
+  async runTask(userId: number, jobId: number, task: AiTask): Promise<JobWithEvents> {
+    const job = await this.jobs.findOne(userId, jobId);
     if (!job.description?.trim()) {
       throw new BadRequestException('Add a job description before using AI features');
     }
 
-    const profile = await this.settings.getProfile();
+    const profile = await this.users.getProfile(userId);
     const output = await this.complete(buildTaskPrompt(task, job, profile));
-    return this.jobs.update(jobId, { [AI_TASK_FIELDS[task]]: output });
+    return this.jobs.update(userId, jobId, { [AI_TASK_FIELDS[task]]: output });
   }
 
   async extractJob(pageText: string): Promise<JobDraft> {

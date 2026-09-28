@@ -13,9 +13,6 @@ services:
       PUID: 1000
       PGID: 1000
       TZ: Etc/UTC
-      # Require a password to open Jobify. Strongly recommended if it is reachable
-      # from outside your home network.
-      # JOBIFY_PASSWORD: change-me
       # Optional AI defaults; these can also be set from the Settings page.
       # AI_PROVIDER: anthropic
       # AI_API_KEY: sk-ant-...

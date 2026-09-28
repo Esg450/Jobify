@@ -18,12 +18,16 @@ export type JobSummary = Omit<
 >;
 export type JobWithEvents = Job & { events: JobEvent[] };
 
+/**
+ * Jobs belong to a single user. Every method takes the owner's id and behaves as if other
+ * users' jobs do not exist.
+ */
 @Injectable()
 export class JobsService {
   constructor(@Inject(DATABASE) private readonly db: Database) {}
 
-  async list(query: QueryJobsDto): Promise<JobSummary[]> {
-    const filters: SQL[] = [eq(jobs.archived, query.archived ?? false)];
+  async list(userId: number, query: QueryJobsDto): Promise<JobSummary[]> {
+    const filters: SQL[] = [eq(jobs.userId, userId), eq(jobs.archived, query.archived ?? false)];
     if (query.status?.length) filters.push(inArray(jobs.status, query.status));
     if (query.workplaceType?.length) filters.push(inArray(jobs.workplaceType, query.workplaceType));
     if (query.q) {
@@ -43,8 +47,8 @@ export class JobsService {
       .orderBy(direction(sortColumn), desc(jobs.id));
   }
 
-  async findOne(id: number): Promise<JobWithEvents> {
-    const job = await this.db.query.jobs.findFirst({ where: eq(jobs.id, id) });
+  async findOne(userId: number, id: number): Promise<JobWithEvents> {
+    const job = await this.db.query.jobs.findFirst({ where: JobsService.owned(userId, id) });
     if (!job) throw new NotFoundException(`Job ${id} not found`);
 
     const events = await this.db
@@ -56,14 +60,14 @@ export class JobsService {
     return { ...job, events };
   }
 
-  async create(dto: CreateJobDto): Promise<JobWithEvents> {
+  async create(userId: number, dto: CreateJobDto): Promise<JobWithEvents> {
     const status = dto.status ?? 'saved';
     const appliedOn = dto.appliedOn ?? (status === 'saved' ? null : today());
 
     const id = await this.db.transaction(async (tx) => {
       const [job] = await tx
         .insert(jobs)
-        .values({ ...dto, status, appliedOn })
+        .values({ ...dto, userId, status, appliedOn })
         .returning({ id: jobs.id });
       await tx
         .insert(jobEvents)
@@ -71,11 +75,11 @@ export class JobsService {
       return job.id;
     });
 
-    return this.findOne(id);
+    return this.findOne(userId, id);
   }
 
-  async update(id: number, dto: UpdateJobDto): Promise<JobWithEvents> {
-    const existing = await this.findOne(id);
+  async update(userId: number, id: number, dto: UpdateJobDto): Promise<JobWithEvents> {
+    const existing = await this.findOne(userId, id);
     const statusChanged = dto.status !== undefined && dto.status !== existing.status;
 
     const changes: UpdateJobDto = { ...dto };
@@ -96,16 +100,19 @@ export class JobsService {
       }
     });
 
-    return this.findOne(id);
+    return this.findOne(userId, id);
   }
 
-  async remove(id: number): Promise<void> {
-    const deleted = await this.db.delete(jobs).where(eq(jobs.id, id)).returning({ id: jobs.id });
+  async remove(userId: number, id: number): Promise<void> {
+    const deleted = await this.db
+      .delete(jobs)
+      .where(JobsService.owned(userId, id))
+      .returning({ id: jobs.id });
     if (deleted.length === 0) throw new NotFoundException(`Job ${id} not found`);
   }
 
-  async addEvent(jobId: number, dto: CreateJobEventDto): Promise<JobEvent> {
-    await this.assertExists(jobId);
+  async addEvent(userId: number, jobId: number, dto: CreateJobEventDto): Promise<JobEvent> {
+    await this.assertOwned(userId, jobId);
     const [event] = await this.db
       .insert(jobEvents)
       .values({
@@ -120,7 +127,13 @@ export class JobsService {
     return event;
   }
 
-  async updateEvent(jobId: number, eventId: number, dto: UpdateJobEventDto): Promise<JobEvent> {
+  async updateEvent(
+    userId: number,
+    jobId: number,
+    eventId: number,
+    dto: UpdateJobEventDto,
+  ): Promise<JobEvent> {
+    await this.assertOwned(userId, jobId);
     const { occurredAt, ...rest } = dto;
     const [event] = await this.db
       .update(jobEvents)
@@ -131,7 +144,8 @@ export class JobsService {
     return event;
   }
 
-  async removeEvent(jobId: number, eventId: number): Promise<void> {
+  async removeEvent(userId: number, jobId: number, eventId: number): Promise<void> {
+    await this.assertOwned(userId, jobId);
     const deleted = await this.db
       .delete(jobEvents)
       .where(and(eq(jobEvents.id, eventId), eq(jobEvents.jobId, jobId)))
@@ -139,9 +153,13 @@ export class JobsService {
     if (deleted.length === 0) throw new NotFoundException(`Event ${eventId} not found`);
   }
 
-  private async assertExists(id: number): Promise<void> {
+  private static owned(userId: number, id: number): SQL {
+    return and(eq(jobs.id, id), eq(jobs.userId, userId))!;
+  }
+
+  private async assertOwned(userId: number, id: number): Promise<void> {
     const job = await this.db.query.jobs.findFirst({
-      where: eq(jobs.id, id),
+      where: JobsService.owned(userId, id),
       columns: { id: true },
     });
     if (!job) throw new NotFoundException(`Job ${id} not found`);
