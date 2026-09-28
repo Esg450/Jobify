@@ -109,18 +109,20 @@ Providers implement `AiProvider` in `apps/server/src/ai/providers/`. Add the pro
 
 ## Releasing
 
-Releases are driven by git tags. From an up-to-date `main`:
+Releases are published from GitHub's **Releases** page:
 
-```sh
-npm version 1.2.3 --no-git-tag-version --workspaces --include-workspace-root
-git commit -am "Release 1.2.3"
-git tag v1.2.3
-git push origin main v1.2.3
-```
+1. Choose **Draft a new release**.
+2. Under **Choose a tag**, type a new version such as `v1.2.3` (with the `v`) and pick `main` as
+   the target.
+3. Click **Generate release notes**, edit them if you like, and **Publish release**.
 
-The `Docker image` workflow builds the image and publishes `:1.2.3`, `:1.2` and `:latest`, which
-is what Unraid and other installs pick up as an update. Then create a GitHub release from the
-tag with notes on what changed. Every push to `main` also publishes `:edge`.
+The `Docker image` workflow then builds the image and publishes `:1.2.3`, `:1.2` and `:latest`,
+which Unraid and other installs pick up as an update. Tick **Set as a pre-release** to publish a
+test build under its version tag without moving `:latest`. Every push to `main` also publishes
+`:edge`.
+
+The version shown in the app comes from the release tag, so there is no need to bump the version
+in `package.json`.
 
 ## License
 
