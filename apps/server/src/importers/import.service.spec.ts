@@ -5,17 +5,23 @@ import type { JobDraft } from './job-draft.js';
 import type { JobParser } from './job-parser.js';
 import { ImportService } from './import.service.js';
 
-function parser(id: string, result: JobDraft | null | Error, site?: string): JobParser {
+function parser(
+  id: string,
+  result: JobDraft | null | Error,
+  site?: string,
+  options: Partial<JobParser> = {},
+): JobParser {
   return {
     id,
     site,
     matches: () => true,
+    ...options,
     parse: () => (result instanceof Error ? Promise.reject(result) : Promise.resolve(result)),
   };
 }
 
-function createService(extractJob = vi.fn()) {
-  const fetcher = { text: vi.fn().mockResolvedValue('<html></html>') } as unknown as HttpFetcher;
+function createService(extractJob = vi.fn(), pageHtml = '<html></html>') {
+  const fetcher = { text: vi.fn().mockResolvedValue(pageHtml) } as unknown as HttpFetcher;
   const ai = { extractJob } as unknown as AiService;
   return { service: new ImportService(fetcher, ai), extractJob };
 }
@@ -89,5 +95,56 @@ describe('ImportService', () => {
     await expect(
       service.import({ url: 'https://example.com/job' }, [parser('generic', null)]),
     ).rejects.toThrow('No job details were found on that page');
+  });
+
+  it('follows a posting embedded from an applicant tracking system', async () => {
+    const careersPage =
+      '<iframe src="https://jobs.ashbyhq.com/acme/440fd260-b06a-42e0-b89e-99e966b317dc"></iframe>';
+    const { service } = createService(vi.fn(), careersPage);
+    const ashby = parser(
+      'ashby',
+      { title: 'DevOps Engineer', description: 'Run things.' },
+      'Ashby',
+      {
+        matches: (url) => url?.hostname === 'jobs.ashbyhq.com',
+      },
+    );
+
+    const result = await service.import({ url: 'https://www.acme.com/careers' }, [ashby]);
+    expect(result.draft).toMatchObject({ title: 'DevOps Engineer', source: 'Ashby' });
+    expect(result.sources).toEqual(['embedded', 'ashby']);
+  });
+
+  it('lets AI replace guesses from the page title', async () => {
+    const { service, extractJob } = createService(
+      vi
+        .fn()
+        .mockResolvedValue({ title: 'DevOps Engineer', company: 'Acme', description: 'Real.' }),
+      '<html><body><p>Senior DevOps Engineer at Acme</p></body></html>',
+    );
+    const guess = parser(
+      'meta-tags',
+      { title: 'Acme Careers', company: 'Acme', description: 'Join us!' },
+      undefined,
+      {
+        fallback: true,
+      },
+    );
+
+    const result = await service.import({ url: 'https://acme.com/careers', useAi: true }, [guess]);
+    // The AI reads the downloaded page, not just the guessed description.
+    expect(extractJob).toHaveBeenCalledWith('Senior DevOps Engineer at Acme');
+    expect(result.draft).toMatchObject({ title: 'DevOps Engineer', description: 'Real.' });
+  });
+
+  it('keeps fields from real parsers over AI output', async () => {
+    const { service } = createService(
+      vi.fn().mockResolvedValue({ title: 'AI title', location: 'Paris' }),
+      '<html><body>Engineer at Acme, Paris</body></html>',
+    );
+    const result = await service.import({ url: 'https://acme.com/job', useAi: true }, [
+      parser('json-ld', { title: 'Structured title', company: 'Acme' }),
+    ]);
+    expect(result.draft).toMatchObject({ title: 'Structured title', location: 'Paris' });
   });
 });

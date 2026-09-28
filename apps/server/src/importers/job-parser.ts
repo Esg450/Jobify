@@ -29,6 +29,11 @@ export interface JobParser {
    */
   readonly site?: string;
   /**
+   * Set for last-resort parsers whose results are guesses (such as the page title). Their
+   * fields are replaced by AI extraction when the user asks for it.
+   */
+  readonly fallback?: boolean;
+  /**
    * Whether this parser should try the page. Site-specific parsers match on the URL;
    * generic parsers work on any HTML and can simply return true.
    */

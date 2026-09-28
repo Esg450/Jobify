@@ -8,6 +8,7 @@ import { cleanText, htmlToMarkdown } from '../normalize.js';
  */
 export class MetaTagsParser implements JobParser {
   readonly id = 'meta-tags';
+  readonly fallback = true;
 
   matches(): boolean {
     return true;

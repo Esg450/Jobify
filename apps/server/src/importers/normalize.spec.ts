@@ -21,6 +21,12 @@ describe('htmlToMarkdown', () => {
     );
   });
 
+  it('removes whitespace-only lines left by line breaks', () => {
+    expect(htmlToMarkdown('<p><strong>Description:</strong><br><br><br>We build things.</p>')).toBe(
+      '**Description:**\n\nWe build things.',
+    );
+  });
+
   it('drops scripts and returns undefined for empty input', () => {
     expect(htmlToMarkdown('<script>alert(1)</script>')).toBeUndefined();
     expect(htmlToMarkdown('   ')).toBeUndefined();

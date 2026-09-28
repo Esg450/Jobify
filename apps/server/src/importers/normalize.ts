@@ -41,6 +41,7 @@ export function htmlToMarkdown(html: string | undefined | null): string | undefi
     .replace(/\u00a0/g, ' ')
     // Collapse runs of hard line breaks and blank lines into a single paragraph break.
     .replace(/(?: {2}\n\s*){2,}/g, '\n\n')
+    .replace(/\n[ \t]+\n/g, '\n\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
   return markdown || undefined;
