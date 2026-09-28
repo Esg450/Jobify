@@ -1,4 +1,4 @@
-import { Database, Sparkles, UserRound, Users } from 'lucide-react';
+import { Database, ServerCog, Sparkles, UserRound, Users } from 'lucide-react';
 import { NavLink, Outlet } from 'react-router';
 import { useCurrentUser, useHealth } from '../../api/hooks';
 import { PageHeader } from '../../components/PageHeader';
@@ -9,6 +9,7 @@ const SECTIONS = [
   { to: 'ai', label: 'AI provider', icon: Sparkles, adminOnly: false },
   { to: 'users', label: 'Users', icon: Users, adminOnly: true },
   { to: 'data', label: 'Your data', icon: Database, adminOnly: false },
+  { to: 'system', label: 'System', icon: ServerCog, adminOnly: true },
 ];
 
 export function SettingsLayout() {

@@ -9,6 +9,7 @@ import { DatabaseModule } from './database/database.module.js';
 import { HealthController } from './health.controller.js';
 import { ImportModule } from './importers/import.module.js';
 import { JobsModule } from './jobs/jobs.module.js';
+import { LogsController } from './logging/logs.controller.js';
 import { SettingsModule } from './settings/settings.module.js';
 import { StatsModule } from './stats/stats.module.js';
 
@@ -29,6 +30,6 @@ import { StatsModule } from './stats/stats.module.js';
       exclude: ['/api/{*path}'],
     }),
   ],
-  controllers: [HealthController],
+  controllers: [HealthController, LogsController],
 })
 export class AppModule {}

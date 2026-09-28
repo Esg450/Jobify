@@ -1,4 +1,5 @@
 import { BadGatewayException, BadRequestException, Injectable } from '@nestjs/common';
+import { describeFetchError } from '../common/errors.js';
 
 const TIMEOUT_MS = 20_000;
 const MAX_PAGE_BYTES = 5 * 1024 * 1024;
@@ -38,7 +39,7 @@ export class HttpFetcher {
       });
     } catch (error) {
       throw new BadGatewayException(
-        `Could not reach ${target.hostname}: ${(error as Error).message}`,
+        `Could not reach ${target.hostname}: ${describeFetchError(error)}`,
       );
     }
 

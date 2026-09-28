@@ -16,34 +16,44 @@ import { JobDetailPage } from './pages/JobDetailPage';
 import { JobsPage } from './pages/JobsPage';
 import { NewJobPage } from './pages/NewJobPage';
 import { NotFoundPage } from './pages/NotFoundPage';
+import { RouteError } from './pages/RouteError';
 import { AccountSettings } from './pages/settings/AccountSettings';
 import { AiSettings } from './pages/settings/AiSettings';
 import { DataSettings } from './pages/settings/DataSettings';
 import { SettingsLayout } from './pages/settings/SettingsLayout';
+import { SystemSettings } from './pages/settings/SystemSettings';
 import { UsersSettings } from './pages/settings/UsersSettings';
 
 const router = createBrowserRouter([
   {
     element: <Layout />,
+    errorElement: <RouteError />,
     children: [
-      { index: true, element: <DashboardPage /> },
-      { path: 'jobs', element: <JobsPage /> },
-      { path: 'jobs/new', element: <NewJobPage /> },
-      { path: 'jobs/:id', element: <JobDetailPage /> },
-      { path: 'jobs/:id/edit', element: <EditJobPage /> },
-      { path: 'board', element: <BoardPage /> },
       {
-        path: 'settings',
-        element: <SettingsLayout />,
+        // Errors inside a page keep the sidebar; this nested boundary catches them.
+        errorElement: <RouteError />,
         children: [
-          { index: true, element: <Navigate to="account" replace /> },
-          { path: 'account', element: <AccountSettings /> },
-          { path: 'ai', element: <AiSettings /> },
-          { path: 'users', element: <UsersSettings /> },
-          { path: 'data', element: <DataSettings /> },
+          { index: true, element: <DashboardPage /> },
+          { path: 'jobs', element: <JobsPage /> },
+          { path: 'jobs/new', element: <NewJobPage /> },
+          { path: 'jobs/:id', element: <JobDetailPage /> },
+          { path: 'jobs/:id/edit', element: <EditJobPage /> },
+          { path: 'board', element: <BoardPage /> },
+          {
+            path: 'settings',
+            element: <SettingsLayout />,
+            children: [
+              { index: true, element: <Navigate to="account" replace /> },
+              { path: 'account', element: <AccountSettings /> },
+              { path: 'ai', element: <AiSettings /> },
+              { path: 'users', element: <UsersSettings /> },
+              { path: 'data', element: <DataSettings /> },
+              { path: 'system', element: <SystemSettings /> },
+            ],
+          },
+          { path: '*', element: <NotFoundPage /> },
         ],
       },
-      { path: '*', element: <NotFoundPage /> },
     ],
   },
 ]);

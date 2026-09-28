@@ -119,6 +119,7 @@ All settings are optional environment variables.
 | `PORT`          | `3000`          | Port the web server listens on.                                                             |
 | `DATA_DIR`      | `/data`         | Directory for the SQLite database.                                                          |
 | `PUID` / `PGID` | `1000` / `1000` | User and group the container runs as. The data directory is handed to this user on startup. |
+| `LOG_LEVEL`     | `log`           | How much to log: `error`, `warn`, `log`, or `debug` to also record every request.           |
 | `AI_PROVIDER`   | _unset_         | Default AI provider: `anthropic`, `openai`, `gemini`, `ollama` or `openai_compatible`.      |
 | `AI_MODEL`      | _unset_         | Default model. Anthropic defaults to `claude-opus-5-5`; other providers need a model name.  |
 | `AI_API_KEY`    | _unset_         | API key for the provider.                                                                   |
@@ -184,6 +185,14 @@ docker exec jobify node apps/server/dist/cli.js reset-password <username>
 - Passwords are hashed with scrypt, sessions are stored as hashes, and sign-in attempts are
   rate-limited. API keys are stored in the database in your data directory and are never sent to
   the browser.
+
+## Logs and troubleshooting
+
+Jobify writes its log to `logs/jobify.log` in the data directory (on Unraid,
+`/mnt/user/appdata/jobify/logs/`), alongside the container's console output. Server errors, failed
+requests and errors from people's browsers all end up there. Admins can also download it under
+**Settings → System**. Set `LOG_LEVEL=debug` to record every request while you track down a
+problem. Log files roll over at 5 MB, and the three most recent old files are kept.
 
 ## Backups
 

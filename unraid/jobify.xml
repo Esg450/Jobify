@@ -16,6 +16,7 @@
   <Config Name="Data" Target="/data" Default="/mnt/user/appdata/jobify" Mode="rw" Description="Where the Jobify database is stored." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/jobify</Config>
   <Config Name="PUID" Target="PUID" Default="99" Mode="" Description="User ID that owns the data directory." Type="Variable" Display="advanced" Required="true" Mask="false">99</Config>
   <Config Name="PGID" Target="PGID" Default="100" Mode="" Description="Group ID that owns the data directory." Type="Variable" Display="advanced" Required="true" Mask="false">100</Config>
+  <Config Name="Log level" Target="LOG_LEVEL" Default="log" Mode="" Description="How much to write to logs/jobify.log in the data folder: error, warn, log, or debug to record every request." Type="Variable" Display="advanced" Required="false" Mask="false">log</Config>
   <Config Name="AI provider" Target="AI_PROVIDER" Default="" Mode="" Description="Optional default AI provider: anthropic, openai, gemini, ollama or openai_compatible. Can also be set in the app's Settings page." Type="Variable" Display="advanced" Required="false" Mask="false"/>
   <Config Name="AI API key" Target="AI_API_KEY" Default="" Mode="" Description="Optional API key for the default AI provider." Type="Variable" Display="advanced" Required="false" Mask="true"/>
   <Config Name="AI model" Target="AI_MODEL" Default="" Mode="" Description="Optional model for the default AI provider." Type="Variable" Display="advanced" Required="false" Mask="false"/>

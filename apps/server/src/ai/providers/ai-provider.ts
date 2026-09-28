@@ -1,3 +1,5 @@
+import { describeFetchError } from '../../common/errors.js';
+
 export interface CompletionRequest {
   system: string;
   prompt: string;
@@ -29,7 +31,7 @@ export async function postJson<T>(
       signal: AbortSignal.timeout(5 * 60_000),
     });
   } catch (error) {
-    throw new AiProviderError(`Could not reach ${new URL(url).host}: ${(error as Error).message}`);
+    throw new AiProviderError(`Could not reach ${new URL(url).host}: ${describeFetchError(error)}`);
   }
 
   if (!response.ok) {

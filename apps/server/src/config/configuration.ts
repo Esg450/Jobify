@@ -8,6 +8,8 @@ export interface AppConfig {
   /** Set at image build time from the release tag. */
   version: string;
   port: number;
+  /** One of fatal, error, warn, log, debug or verbose. */
+  logLevel: string;
   host: string;
   dataDir: string;
   staticDir: string;
@@ -28,6 +30,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   return {
     version: env.JOBIFY_VERSION || 'dev',
     port: Number(env.PORT ?? 3000),
+    logLevel: env.LOG_LEVEL || 'log',
     host: env.HOST ?? '0.0.0.0',
     dataDir: path.resolve(env.DATA_DIR ?? path.join(SERVER_ROOT, 'data')),
     staticDir: path.resolve(env.STATIC_DIR ?? path.join(SERVER_ROOT, '../web/dist')),
