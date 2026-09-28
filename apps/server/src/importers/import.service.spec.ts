@@ -87,7 +87,7 @@ describe('ImportService', () => {
       company: 'AI Co',
       description: 'Senior chef wanted at AI Co',
     });
-    expect(result.sources).toEqual(['ai']);
+    expect(result.sources).toEqual(['text', 'ai']);
   });
 
   it('fails when nothing useful was found', async () => {

@@ -35,9 +35,10 @@ container with an embedded SQLite database, so there is nothing else to set up.
 - **Dashboard.** Active applications, response rate, offers, your pipeline at a glance and
   applications per week.
 - **Import from job sites.** Paste a link and Jobify fills in the form. Dedicated importers for
-  LinkedIn, Workday, Greenhouse, Lever, Ashby and SmartRecruiters, plus a generic importer that
-  understands the structured data most career pages publish. For pages behind a login you can
-  paste the page source or text instead.
+  LinkedIn, Workday, Greenhouse, Lever, Ashby, SmartRecruiters, Workable and Oracle career
+  sites, plus generic importers that read the structured data, embedded job data and page
+  content that most other career pages have. Pages pasted from Indeed, Glassdoor and other
+  sites that block automated access are recognised too, and plain text works as well.
 - **Optional AI assistant.** Connect Anthropic (Claude), OpenAI, Google Gemini, a local Ollama
   model or any OpenAI-compatible API to summarize postings, tidy up descriptions, draft cover
   letters, prepare for interviews and extract job details from any page.
@@ -145,12 +146,18 @@ choose, and nowhere else.
 ## Importing jobs
 
 Paste a posting URL on the **Add job** page. Jobify tries the importer for that site first, then
-falls back to the schema.org `JobPosting` data that most career sites embed, and finally to the
-page's title and main content. You always get to review the result before saving.
+works through the fallbacks: the schema.org `JobPosting` data most career sites publish, the
+markup of well-known job sites, job data embedded in the page's scripts, and finally the page's
+title and the block of text that reads most like a description. Whatever was found, a last pass
+reads the salary, location, remote/hybrid and employment type out of the text. Company careers
+pages that embed their postings from Ashby, Greenhouse, Lever or Workday are followed to the
+real posting. You always get to review the result before saving.
 
-Some sites block automated requests or require you to sign in. In that case switch to **Paste** and
-paste the page source (View Source → Select all → Copy) or just the posting text. With an AI
-provider configured, Jobify can extract the details from plain text too.
+Some sites block automated requests or require you to sign in (Indeed, Glassdoor and LinkedIn
+when signed in, for example). In that case switch to **Paste** and paste the page source (right
+click → View Page Source → Select all → Copy, or from the browser's developer tools) or just the
+posting text. A copied posting usually comes through with its title, company, location and
+salary; with an AI provider configured, Jobify can fill in anything that is still missing.
 
 Want to support another site? Importers are small, self-contained classes; see
 [CONTRIBUTING.md](CONTRIBUTING.md#adding-a-job-site-importer).

@@ -82,6 +82,10 @@ export class ExampleParser implements JobParser {
 
 Then add it to `JOB_PARSERS` in `parsers/index.ts`, above the generic parsers.
 
+If the site has no API but renders postings with stable markup (as Indeed and Glassdoor do),
+add a profile to `parsers/rendered-page.parser.ts` instead: a list of selectors for the title,
+company, location and description. Profiles are how pages pasted from a browser are read.
+
 Some tips:
 
 - Prefer a site's public JSON API over scraping HTML; it is far more stable. `page.fetchJson()`
@@ -94,6 +98,9 @@ Some tips:
   workplace types, dates and salaries.
 - Add a spec next to your parser with a trimmed-down sample response. `importers/testing.ts` has
   a `fakePage()` helper so tests never hit the network.
+- You do not need to extract everything: after the parsers run, `importers/enrich.ts` reads the
+  salary, location, remote/hybrid and employment type out of the description when they are
+  missing, and `text-signals.ts` has the shared heuristics for that.
 
 ## Adding an AI provider
 
