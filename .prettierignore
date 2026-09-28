@@ -1,0 +1,6 @@
+dist
+coverage
+data
+apps/server/drizzle/meta
+package-lock.json
+LICENSE
