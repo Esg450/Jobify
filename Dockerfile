@@ -23,7 +23,7 @@ FROM node:24-slim
 ARG VERSION=dev
 LABEL org.opencontainers.image.title="Jobify" \
       org.opencontainers.image.description="A self-hosted job application tracker" \
-      org.opencontainers.image.licenses="PolyForm-Noncommercial-1.0.0" \
+      org.opencontainers.image.licenses="AGPL-3.0-or-later" \
       org.opencontainers.image.version="$VERSION"
 
 ENV NODE_ENV=production \

@@ -232,7 +232,6 @@ web app. See [CONTRIBUTING.md](CONTRIBUTING.md) for how the code is organised.
 
 ## License
 
-Jobify is released under the [PolyForm Noncommercial License 1.0.0](LICENSE). You are free to use,
-self-host, modify and share it for any noncommercial purpose, including tracking your own job
-search. You may not sell it or use it for commercial purposes. Because of this restriction the
-project is source-available rather than "open source" in the OSI sense.
+Jobify is free software released under the [GNU Affero General Public License v3.0](LICENSE).
+You can use, self-host, modify and share it. If you distribute a modified version, or run one as
+a service for other people, you must make your source code available under the same license.

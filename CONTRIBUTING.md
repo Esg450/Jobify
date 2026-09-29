@@ -135,4 +135,4 @@ in `package.json`.
 ## License
 
 By contributing you agree that your contributions are licensed under the
-[PolyForm Noncommercial License 1.0.0](LICENSE).
+[GNU Affero General Public License v3.0](LICENSE).

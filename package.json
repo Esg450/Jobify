@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "A self-hosted job application tracker.",
-  "license": "PolyForm-Noncommercial-1.0.0",
+  "license": "AGPL-3.0-or-later",
   "type": "module",
   "workspaces": [
     "apps/server",
