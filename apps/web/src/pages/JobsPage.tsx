@@ -1,4 +1,4 @@
-import { Download, List, Plus } from 'lucide-react';
+import { Download, GanttChart, List, Plus } from 'lucide-react';
 import { Link, useNavigate } from 'react-router';
 import { useJobs } from '../api/hooks';
 import type { JobSummary } from '../api/types';
@@ -32,6 +32,9 @@ export function JobsPage() {
               <Download className="size-4" aria-hidden />
               Export CSV
             </a>
+            <ButtonLink to="/timeline" variant="ghost" icon={<GanttChart className="size-4" />}>
+              Timeline chart
+            </ButtonLink>
             <ButtonLink to="/jobs/new" variant="primary" icon={<Plus className="size-4" />}>
               Add job
             </ButtonLink>

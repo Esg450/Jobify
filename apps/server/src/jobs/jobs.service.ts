@@ -3,6 +3,7 @@ import { and, asc, desc, eq, getTableColumns, inArray, like, or, type SQL } from
 import { today } from '../common/dates.js';
 import { DATABASE, type Database } from '../database/database.module.js';
 import { jobEvents, jobs, type Job, type JobEvent } from '../database/schema.js';
+import type { JobStatus } from './job.constants.js';
 import type { CreateJobDto } from './dto/create-job.dto.js';
 import type { CreateJobEventDto, UpdateJobEventDto } from './dto/job-event.dto.js';
 import type { QueryJobsDto } from './dto/query-jobs.dto.js';
@@ -17,6 +18,17 @@ export type JobSummary = Omit<
   'description' | 'notes' | 'aiSummary' | 'coverLetter' | 'interviewPrep'
 >;
 export type JobWithEvents = Job & { events: JobEvent[] };
+
+/** A job with the status history and interviews needed to draw it on a timeline. */
+export interface TimelineJob {
+  id: number;
+  title: string;
+  company: string;
+  status: JobStatus;
+  appliedOn: string | null;
+  createdAt: Date;
+  events: Pick<JobEvent, 'type' | 'fromStatus' | 'toStatus' | 'title' | 'occurredAt'>[];
+}
 
 /**
  * Jobs belong to a single user. Every method takes the owner's id and behaves as if other
@@ -45,6 +57,51 @@ export class JobsService {
       .from(jobs)
       .where(and(...filters))
       .orderBy(direction(sortColumn), desc(jobs.id));
+  }
+
+  /** Every job (optionally archived ones too) with its status changes and interviews. */
+  async timeline(userId: number, archived: boolean): Promise<TimelineJob[]> {
+    const rows = await this.db
+      .select({
+        id: jobs.id,
+        title: jobs.title,
+        company: jobs.company,
+        status: jobs.status,
+        appliedOn: jobs.appliedOn,
+        createdAt: jobs.createdAt,
+      })
+      .from(jobs)
+      .where(and(eq(jobs.userId, userId), eq(jobs.archived, archived)))
+      .orderBy(asc(jobs.createdAt));
+    if (rows.length === 0) return [];
+
+    const events = await this.db
+      .select({
+        jobId: jobEvents.jobId,
+        type: jobEvents.type,
+        fromStatus: jobEvents.fromStatus,
+        toStatus: jobEvents.toStatus,
+        title: jobEvents.title,
+        occurredAt: jobEvents.occurredAt,
+      })
+      .from(jobEvents)
+      .where(
+        and(
+          inArray(
+            jobEvents.jobId,
+            rows.map((row) => row.id),
+          ),
+          inArray(jobEvents.type, ['created', 'status_change', 'interview']),
+        ),
+      )
+      .orderBy(asc(jobEvents.occurredAt), asc(jobEvents.id));
+
+    return rows.map((row) => ({
+      ...row,
+      events: events
+        .filter((event) => event.jobId === row.id)
+        .map(({ jobId: _, ...event }) => event),
+    }));
   }
 
   async findOne(userId: number, id: number): Promise<JobWithEvents> {

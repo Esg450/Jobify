@@ -15,6 +15,7 @@ import type {
   JobSummary,
   Profile,
   Stats,
+  TimelineJob,
   User,
   UserInput,
 } from './types';
@@ -24,6 +25,7 @@ export const queryKeys = {
   jobList: (query: JobQuery) => ['jobs', 'list', query] as const,
   job: (id: number) => ['jobs', id] as const,
   stats: ['stats'] as const,
+  timeline: (archived: boolean) => ['jobs', 'timeline', archived] as const,
   aiSettings: ['ai', 'settings'] as const,
   aiProviders: ['ai', 'providers'] as const,
   profile: ['profile'] as const,
@@ -175,6 +177,13 @@ export function useJobs(query: JobQuery) {
     queryKey: queryKeys.jobList(query),
     queryFn: () => api.get<JobSummary[]>('/jobs', { ...query }),
     placeholderData: (previous) => previous,
+  });
+}
+
+export function useTimeline(archived: boolean) {
+  return useQuery({
+    queryKey: queryKeys.timeline(archived),
+    queryFn: () => api.get<TimelineJob[]>('/jobs/timeline', { archived }),
   });
 }
 

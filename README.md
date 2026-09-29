@@ -28,8 +28,9 @@ container with an embedded SQLite database, so there is nothing else to set up.
   type, salary range, source, contact, tags, notes, an interest rating and the full description.
 - **Status pipeline.** Saved → Applied → Screening → Interviewing → Offer → Accepted, plus Rejected,
   Withdrawn and Ghosted. Every status change is recorded on the job's timeline automatically.
-- **List and board views.** Search, filter and sort a table of jobs, or drag cards between columns
-  on a Kanban board.
+- **List, board and timeline views.** Search, filter and sort a table of jobs, drag cards between
+  columns on a full-width Kanban board, or see every application as a Gantt-style timeline
+  coloured by status with interviews marked, and save it as a PNG or SVG.
 - **Timeline.** Log interviews, notes and follow-ups against each job. Upcoming interviews,
   follow-up dates and deadlines show up on the dashboard.
 - **Dashboard.** Active applications, response rate, offers, your pipeline at a glance and

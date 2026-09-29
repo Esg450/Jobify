@@ -103,6 +103,17 @@ export interface EventInput {
   occurredAt?: string;
 }
 
+/** A job with the history the timeline chart needs. */
+export interface TimelineJob {
+  id: number;
+  title: string;
+  company: string;
+  status: JobStatus;
+  appliedOn: string | null;
+  createdAt: string;
+  events: Pick<JobEvent, 'type' | 'fromStatus' | 'toStatus' | 'title' | 'occurredAt'>[];
+}
+
 export interface JobRef {
   id: number;
   title: string;

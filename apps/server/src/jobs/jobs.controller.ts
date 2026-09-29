@@ -28,6 +28,12 @@ export class JobsController {
     return this.jobs.list(user.id, query);
   }
 
+  /** Declared before ':id' so the path is not read as a job id. */
+  @Get('timeline')
+  timeline(@CurrentUser() user: PublicUser, @Query('archived') archived?: string) {
+    return this.jobs.timeline(user.id, archived === 'true');
+  }
+
   @Get(':id')
   findOne(@CurrentUser() user: PublicUser, @Param('id', ParseIntPipe) id: number) {
     return this.jobs.findOne(user.id, id);

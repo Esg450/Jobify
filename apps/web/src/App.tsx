@@ -21,6 +21,7 @@ import { AccountSettings } from './pages/settings/AccountSettings';
 import { AiSettings } from './pages/settings/AiSettings';
 import { DataSettings } from './pages/settings/DataSettings';
 import { SettingsLayout } from './pages/settings/SettingsLayout';
+import { TimelinePage } from './pages/TimelinePage';
 import { SystemSettings } from './pages/settings/SystemSettings';
 import { UsersSettings } from './pages/settings/UsersSettings';
 
@@ -38,7 +39,8 @@ const router = createBrowserRouter([
           { path: 'jobs/new', element: <NewJobPage /> },
           { path: 'jobs/:id', element: <JobDetailPage /> },
           { path: 'jobs/:id/edit', element: <EditJobPage /> },
-          { path: 'board', element: <BoardPage /> },
+          { path: 'board', element: <BoardPage />, handle: { fullWidth: true } },
+          { path: 'timeline', element: <TimelinePage /> },
           {
             path: 'settings',
             element: <SettingsLayout />,

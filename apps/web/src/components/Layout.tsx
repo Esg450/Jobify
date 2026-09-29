@@ -1,6 +1,7 @@
 import {
   BriefcaseBusiness,
   Columns3,
+  GanttChart,
   LayoutDashboard,
   List,
   LogOut,
@@ -13,7 +14,7 @@ import {
   X,
 } from 'lucide-react';
 import { useState } from 'react';
-import { NavLink, Outlet } from 'react-router';
+import { NavLink, Outlet, useMatches } from 'react-router';
 import { useCurrentUser, useLogout } from '../api/hooks';
 import { cn } from '../lib/cn';
 import { useTheme, type Theme } from '../lib/theme';
@@ -23,6 +24,7 @@ const NAVIGATION = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/jobs', label: 'Jobs', icon: List, end: true },
   { to: '/board', label: 'Board', icon: Columns3, end: true },
+  { to: '/timeline', label: 'Timeline', icon: GanttChart, end: true },
   { to: '/settings', label: 'Settings', icon: Settings, end: false },
 ];
 
@@ -149,6 +151,10 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
 
 export function Layout() {
   const [menuOpen, setMenuOpen] = useState(false);
+  // Pages such as the board opt out of the centred column to use the whole width.
+  const fullWidth = useMatches().some(
+    (match) => (match.handle as { fullWidth?: boolean } | undefined)?.fullWidth,
+  );
 
   return (
     <div className="min-h-dvh lg:pl-60">
@@ -189,7 +195,14 @@ export function Layout() {
         </div>
       )}
 
-      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+      <main
+        className={cn(
+          'px-4 py-6 sm:px-6',
+          fullWidth
+            ? 'flex min-h-[calc(100dvh-3.5rem)] flex-col lg:min-h-dvh lg:px-6 lg:py-6'
+            : 'mx-auto max-w-7xl lg:px-8 lg:py-8',
+        )}
+      >
         <Outlet />
       </main>
     </div>

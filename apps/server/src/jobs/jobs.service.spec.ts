@@ -84,6 +84,32 @@ describe('JobsService', () => {
     expect((await jobs.findOne(alice, id)).title).toBe('Engineer');
   });
 
+  it('returns status history and interviews for the timeline', async () => {
+    const { id } = await jobs.create(alice, {
+      title: 'Engineer',
+      company: 'Acme',
+      status: 'applied',
+    });
+    await jobs.update(alice, id, { status: 'interviewing' });
+    await jobs.addEvent(alice, id, {
+      type: 'interview',
+      title: 'Onsite',
+      occurredAt: '2026-10-05T10:00:00.000Z',
+    });
+    await jobs.addEvent(alice, id, { type: 'note', body: 'Not on the timeline' });
+    await jobs.create(alice, { title: 'Old', company: 'Initech', archived: true });
+    await jobs.create(bob, { title: 'Chef', company: 'Bistro' });
+
+    const timeline = await jobs.timeline(alice, false);
+    expect(timeline.map((job) => job.company)).toEqual(['Acme']);
+    expect(timeline[0].events.map((event) => [event.type, event.toStatus ?? event.title])).toEqual([
+      ['created', 'applied'],
+      ['status_change', 'interviewing'],
+      ['interview', 'Onsite'],
+    ]);
+    expect((await jobs.timeline(alice, true)).map((job) => job.company)).toEqual(['Initech']);
+  });
+
   it('manages timeline events and deletes them with the job', async () => {
     const { id } = await jobs.create(alice, { title: 'Engineer', company: 'Acme' });
     const interview = await jobs.addEvent(alice, id, {
