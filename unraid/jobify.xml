@@ -11,7 +11,12 @@
   <Overview>Jobify is a self-hosted job application tracker. Track postings, statuses, interviews and follow-ups, import jobs from LinkedIn, Workday, Greenhouse, Lever and other sites, and optionally use an AI provider (Anthropic, OpenAI, Gemini, Ollama) to summarize postings and draft cover letters.</Overview>
   <Category>Productivity: Tools:</Category>
   <WebUI>http://[IP]:[PORT:3000]/</WebUI>
-  <Icon>https://raw.githubusercontent.com/esg450/jobify/main/apps/web/public/favicon.svg</Icon>
+  <Icon>https://raw.githubusercontent.com/esg450/jobify/main/unraid/icon.png</Icon>
+  <TemplateURL>https://raw.githubusercontent.com/esg450/jobify/main/unraid/jobify.xml</TemplateURL>
+  <Screenshot>https://raw.githubusercontent.com/esg450/jobify/main/docs/screenshots/dashboard.png</Screenshot>
+  <Screenshot>https://raw.githubusercontent.com/esg450/jobify/main/docs/screenshots/board.png</Screenshot>
+  <Screenshot>https://raw.githubusercontent.com/esg450/jobify/main/docs/screenshots/job.png</Screenshot>
+  <Date>2026-09-29</Date>
   <Config Name="Web UI port" Target="3000" Default="3000" Mode="tcp" Description="Port for the Jobify web interface." Type="Port" Display="always" Required="true" Mask="false">3000</Config>
   <Config Name="Data" Target="/data" Default="/mnt/user/appdata/jobify" Mode="rw" Description="Where the Jobify database is stored." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/jobify</Config>
   <Config Name="PUID" Target="PUID" Default="99" Mode="" Description="User ID that owns the data directory." Type="Variable" Display="advanced" Required="true" Mask="false">99</Config>
