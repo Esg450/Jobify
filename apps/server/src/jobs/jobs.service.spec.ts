@@ -107,7 +107,10 @@ describe('JobsService', () => {
       ['status_change', 'interviewing'],
       ['interview', 'Onsite'],
     ]);
-    expect((await jobs.timeline(alice, true)).map((job) => job.company)).toEqual(['Initech']);
+    expect((await jobs.timeline(alice, true)).map((job) => job.company)).toEqual([
+      'Acme',
+      'Initech',
+    ]);
   });
 
   it('manages timeline events and deletes them with the job', async () => {

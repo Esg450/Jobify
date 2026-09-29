@@ -60,7 +60,7 @@ export class JobsService {
   }
 
   /** Every job (optionally archived ones too) with its status changes and interviews. */
-  async timeline(userId: number, archived: boolean): Promise<TimelineJob[]> {
+  async timeline(userId: number, includeArchived: boolean): Promise<TimelineJob[]> {
     const rows = await this.db
       .select({
         id: jobs.id,
@@ -71,7 +71,7 @@ export class JobsService {
         createdAt: jobs.createdAt,
       })
       .from(jobs)
-      .where(and(eq(jobs.userId, userId), eq(jobs.archived, archived)))
+      .where(and(eq(jobs.userId, userId), includeArchived ? undefined : eq(jobs.archived, false)))
       .orderBy(asc(jobs.createdAt));
     if (rows.length === 0) return [];
 

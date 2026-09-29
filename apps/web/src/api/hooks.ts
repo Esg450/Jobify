@@ -25,7 +25,7 @@ export const queryKeys = {
   jobList: (query: JobQuery) => ['jobs', 'list', query] as const,
   job: (id: number) => ['jobs', id] as const,
   stats: ['stats'] as const,
-  timeline: (archived: boolean) => ['jobs', 'timeline', archived] as const,
+  timeline: (includeArchived: boolean) => ['jobs', 'timeline', includeArchived] as const,
   aiSettings: ['ai', 'settings'] as const,
   aiProviders: ['ai', 'providers'] as const,
   profile: ['profile'] as const,
@@ -180,10 +180,10 @@ export function useJobs(query: JobQuery) {
   });
 }
 
-export function useTimeline(archived: boolean) {
+export function useTimeline(includeArchived: boolean) {
   return useQuery({
-    queryKey: queryKeys.timeline(archived),
-    queryFn: () => api.get<TimelineJob[]>('/jobs/timeline', { archived }),
+    queryKey: queryKeys.timeline(includeArchived),
+    queryFn: () => api.get<TimelineJob[]>('/jobs/timeline', { includeArchived }),
   });
 }
 
