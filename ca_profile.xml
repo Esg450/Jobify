@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Profile>
-  <Name>esg450's Repository</Name>
+  <Name>Jobify</Name>
   <Icon>https://raw.githubusercontent.com/esg450/jobify/main/unraid/icon.png</Icon>
-  <Profile>Self-hosted apps by Evan Gentis. Jobify is a job application tracker: keep every posting, status, interview and follow-up in one place, import jobs from LinkedIn, Workday, Greenhouse, Lever, Ashby and other job sites, and optionally use an AI provider for summaries, cover letters and interview prep.</Profile>
+  <Profile>Jobify is a self-hosted job application tracker. Keep every posting, status, interview and follow-up in one place, import jobs from LinkedIn, Workday, Greenhouse, Lever, Ashby and other job sites, chart your search as a timeline or flow diagram, and optionally use an AI provider for summaries, cover letters and interview prep. Free and open source under the AGPL.</Profile>
   <Support>https://github.com/esg450/jobify/issues</Support>
   <WebPage>https://github.com/esg450/jobify</WebPage>
 </Profile>
