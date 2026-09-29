@@ -1,31 +1,43 @@
-import { JOB_STATUSES, type JobStatus, type TimelineJob } from '../api/types';
-import { GANTT_COLORS, type GanttTheme } from './gantt';
+import type { JobStatus, TimelineJob } from '../api/types';
+import type { GanttTheme } from './gantt';
 import { STATUS_LABELS } from './labels';
 
-/** Where each status sits left to right. Outcomes share the last column. */
-const COLUMN: Record<JobStatus, number> = {
-  saved: 0,
-  applied: 1,
-  screening: 2,
-  interviewing: 3,
-  offer: 4,
-  accepted: 5,
-  rejected: 5,
-  withdrawn: 5,
-  ghosted: 5,
+/** The pipeline, left to right. Anything else is an outcome that branches off it. */
+const PIPELINE: JobStatus[] = [
+  'saved',
+  'applied',
+  'screening',
+  'interviewing',
+  'offer',
+  'accepted',
+];
+const OUTCOMES: JobStatus[] = ['rejected', 'withdrawn', 'ghosted'];
+
+/** Soft colours: nodes are solid, bands are a translucent wash of their target's colour. */
+export const SANKEY_COLORS: Record<JobStatus, string> = {
+  saved: '#a8a29e',
+  applied: '#7b9bc9',
+  screening: '#a892d9',
+  interviewing: '#6fb3b8',
+  offer: '#79c2a3',
+  accepted: '#5fa85a',
+  rejected: '#f2b06b',
+  withdrawn: '#e6c463',
+  ghosted: '#e58585',
 };
 
 export interface SankeyNode {
+  /** Pipeline statuses are one node each; outcomes get one node per status they came from. */
+  id: string;
   status: JobStatus;
-  /** Jobs that passed through or ended at this status. */
+  label: string;
+  /** Jobs that reached this node. */
   value: number;
-  /** Jobs whose last known status this is. */
-  current: number;
 }
 
 export interface SankeyLink {
-  source: JobStatus;
-  target: JobStatus;
+  source: string;
+  target: string;
   value: number;
 }
 
@@ -44,45 +56,63 @@ function statusPath(job: TimelineJob): JobStatus[] {
   return path.filter((status, index) => index === 0 || status !== path[index - 1]);
 }
 
-/** Counts how many applications moved between each pair of statuses. */
+function nodeId(status: JobStatus, previous: JobStatus | undefined): string {
+  return OUTCOMES.includes(status) && previous ? `${status}@${previous}` : status;
+}
+
+/**
+ * Counts how applications moved between statuses. Outcomes are split by the stage they
+ * were reached from, so "Rejected" after screening and "Rejected" after an interview are
+ * separate branches, which reads as a tree.
+ */
 export function buildSankey(jobs: TimelineJob[]): SankeyData {
-  const starts = new Map<JobStatus, number>();
-  const ends = new Map<JobStatus, number>();
-  const inflow = new Map<JobStatus, number>();
+  const values = new Map<string, SankeyNode>();
   const links = new Map<string, SankeyLink>();
+  const bump = (id: string, status: JobStatus) => {
+    const node = values.get(id) ?? { id, status, label: STATUS_LABELS[status], value: 0 };
+    node.value++;
+    values.set(id, node);
+  };
 
   for (const job of jobs) {
     const path = statusPath(job);
-    starts.set(path[0], (starts.get(path[0]) ?? 0) + 1);
-    ends.set(path[path.length - 1], (ends.get(path[path.length - 1]) ?? 0) + 1);
-    for (let index = 1; index < path.length; index++) {
-      const [source, target] = [path[index - 1], path[index]];
-      const key = `${source}→${target}`;
-      const link = links.get(key) ?? { source, target, value: 0 };
-      link.value++;
-      links.set(key, link);
-      inflow.set(target, (inflow.get(target) ?? 0) + 1);
-    }
+    let previousId: string | undefined;
+    path.forEach((status, index) => {
+      const id = nodeId(status, path[index - 1]);
+      bump(id, status);
+      if (previousId) {
+        const key = `${previousId}→${id}`;
+        const link = links.get(key) ?? { source: previousId, target: id, value: 0 };
+        link.value++;
+        links.set(key, link);
+      }
+      previousId = id;
+    });
   }
 
-  const nodes = JOB_STATUSES.map((status) => ({
-    status,
-    value: (starts.get(status) ?? 0) + (inflow.get(status) ?? 0),
-    current: ends.get(status) ?? 0,
-  })).filter((node) => node.value > 0);
-
+  // Pipeline stages first, then outcomes by status and by the stage they came from.
+  const order = (node: SankeyNode) =>
+    (PIPELINE.includes(node.status) ? PIPELINE : OUTCOMES).indexOf(node.status);
+  const origin = (node: SankeyNode) => PIPELINE.indexOf(node.id.split('@')[1] as JobStatus);
+  const nodes = [...values.values()].sort(
+    (a, b) =>
+      Number(OUTCOMES.includes(a.status)) - Number(OUTCOMES.includes(b.status)) ||
+      order(a) - order(b) ||
+      origin(a) - origin(b),
+  );
   return { nodes, links: [...links.values()] };
 }
 
 const WIDTH = 960;
-const HEIGHT = 480;
-const PADDING = 20;
-const LABEL_SPACE = 150;
-const NODE_WIDTH = 18;
-const NODE_GAP = 16;
+const HEIGHT = 520;
+const PADDING = 24;
+const LABEL_SPACE = 130;
+const NODE_WIDTH = 12;
+const NODE_GAP = 40;
 const FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
 
 interface PlacedNode extends SankeyNode {
+  column: number;
   x: number;
   y: number;
   height: number;
@@ -97,31 +127,31 @@ function escape(text: string): string {
 /** Renders the flow as a self-contained SVG document. */
 export function renderSankeySvg(data: SankeyData, theme: GanttTheme): string {
   const parts: string[] = [
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${HEIGHT}" viewBox="0 0 ${WIDTH} ${HEIGHT}" font-family="${FONT}" font-size="12">`,
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${HEIGHT}" viewBox="0 0 ${WIDTH} ${HEIGHT}" font-family="${FONT}">`,
     `<rect width="${WIDTH}" height="${HEIGHT}" fill="${theme.background}"/>`,
   ];
   if (data.nodes.length === 0) return `${parts.join('')}</svg>`;
 
-  // Only columns that have nodes take up space.
-  const columns = [...new Set(data.nodes.map((node) => COLUMN[node.status]))].sort((a, b) => a - b);
-  const columnIndex = new Map(columns.map((column, index) => [column, index]));
-  // Labels sit to the right of their node, so only the last column needs room for one.
+  // Pipeline stages take the columns in order; an outcome sits right after its source.
+  const stages = PIPELINE.filter((status) => data.nodes.some((node) => node.id === status));
+  const column = (node: SankeyNode): number =>
+    PIPELINE.includes(node.status)
+      ? stages.indexOf(node.status)
+      : stages.indexOf(node.id.split('@')[1] as JobStatus) + 1;
+  const columnCount = Math.max(...data.nodes.map(column)) + 1;
   const plotLeft = PADDING + 8;
-  const plotRight = WIDTH - PADDING - LABEL_SPACE;
-  const columnX = (status: JobStatus) =>
-    columns.length === 1
-      ? (plotLeft + plotRight - NODE_WIDTH) / 2
-      : plotLeft +
-        (columnIndex.get(COLUMN[status])! * (plotRight - plotLeft - NODE_WIDTH)) /
-          (columns.length - 1);
+  const plotRight = WIDTH - PADDING - LABEL_SPACE - NODE_WIDTH;
+  const columnX = (index: number) =>
+    columnCount === 1
+      ? (plotLeft + plotRight) / 2
+      : plotLeft + (index * (plotRight - plotLeft)) / (columnCount - 1);
 
   const byColumn = new Map<number, SankeyNode[]>();
   for (const node of data.nodes) {
-    const list = byColumn.get(COLUMN[node.status]) ?? [];
-    list.push(node);
-    byColumn.set(COLUMN[node.status], list);
+    const index = column(node);
+    byColumn.set(index, [...(byColumn.get(index) ?? []), node]);
   }
-  const plotHeight = HEIGHT - PADDING * 2 - 24;
+  const plotHeight = HEIGHT - PADDING * 2;
   const scale = Math.min(
     ...[...byColumn.values()].map(
       (list) =>
@@ -130,14 +160,35 @@ export function renderSankeySvg(data: SankeyData, theme: GanttTheme): string {
     ),
   );
 
-  const placed = new Map<JobStatus, PlacedNode>();
-  for (const list of byColumn.values()) {
+  // Place columns left to right so each node can follow the node most of its jobs came from.
+  const placed = new Map<string, PlacedNode>();
+  const parentY = (node: SankeyNode) => {
+    const main = data.links
+      .filter((link) => link.target === node.id && placed.has(link.source))
+      .sort((a, b) => b.value - a.value)[0];
+    return main ? placed.get(main.source)!.y : 0;
+  };
+  for (let index = 0; index < columnCount; index++) {
+    const list = (byColumn.get(index) ?? []).sort(
+      (a, b) =>
+        parentY(a) - parentY(b) ||
+        Number(OUTCOMES.includes(a.status)) - Number(OUTCOMES.includes(b.status)) ||
+        OUTCOMES.indexOf(a.status) - OUTCOMES.indexOf(b.status),
+    );
     const total =
       list.reduce((sum, node) => sum + node.value * scale, 0) + NODE_GAP * (list.length - 1);
-    let y = PADDING + 24 + (plotHeight - total) / 2;
+    let y = PADDING + (plotHeight - total) / 2;
     for (const node of list) {
-      const height = node.value * scale;
-      placed.set(node.status, { ...node, x: columnX(node.status), y, height, outY: y, inY: y });
+      const height = Math.max(node.value * scale, 3);
+      placed.set(node.id, {
+        ...node,
+        column: index,
+        x: columnX(index),
+        y,
+        height,
+        outY: y,
+        inY: y,
+      });
       y += height + NODE_GAP;
     }
   }
@@ -171,30 +222,19 @@ export function renderSankeySvg(data: SankeyData, theme: GanttTheme): string {
     const y1 = endY.get(link)!;
     const xm = (x0 + x1) / 2;
     parts.push(
-      `<path d="M${x0} ${y0} C${xm} ${y0} ${xm} ${y1} ${x1} ${y1} L${x1} ${y1 + width} C${xm} ${y1 + width} ${xm} ${y0 + width} ${x0} ${y0 + width} Z" fill="${GANTT_COLORS[link.source]}" opacity="0.4"><title>${escape(`${STATUS_LABELS[link.source]} → ${STATUS_LABELS[link.target]}: ${link.value}`)}</title></path>`,
+      `<path d="M${x0} ${y0} C${xm} ${y0} ${xm} ${y1} ${x1} ${y1} L${x1} ${y1 + width} C${xm} ${y1 + width} ${xm} ${y0 + width} ${x0} ${y0 + width} Z" fill="${SANKEY_COLORS[target.status]}" opacity="0.45"><title>${escape(`${source.label} → ${target.label}: ${link.value}`)}</title></path>`,
     );
   }
 
   for (const node of placed.values()) {
-    const labelX = node.x + NODE_WIDTH + 8;
-    // Jobs that are still at this status get a second, quieter line under the count.
-    const detail =
-      node.current > 0 && node.current !== node.value ? `${node.current} still here` : '';
-    const labelY = node.y + node.height / 2 - (detail ? 7 : 0);
+    const cy = node.y + node.height / 2;
     parts.push(
-      `<rect x="${node.x}" y="${node.y}" width="${NODE_WIDTH}" height="${Math.max(node.height, 2)}" rx="3" fill="${GANTT_COLORS[node.status]}"><title>${escape(`${STATUS_LABELS[node.status]}: ${node.value}`)}</title></rect>`,
-      `<text x="${labelX}" y="${labelY}" dominant-baseline="middle" fill="${theme.text}" font-weight="600">${STATUS_LABELS[node.status]} <tspan fill="${theme.muted}" font-weight="400">${node.value}</tspan></text>`,
+      `<rect x="${node.x}" y="${node.y}" width="${NODE_WIDTH}" height="${node.height}" rx="2" fill="${SANKEY_COLORS[node.status]}"><title>${escape(`${node.label}: ${node.value}`)}</title></rect>`,
+      `<text x="${node.x + NODE_WIDTH + 10}" y="${cy - 3}" fill="${theme.text}" font-size="20" font-weight="600">${node.value}</text>`,
+      `<text x="${node.x + NODE_WIDTH + 10}" y="${cy + 15}" fill="${theme.text}" font-size="13">${escape(node.label)}</text>`,
     );
-    if (detail) {
-      parts.push(
-        `<text x="${labelX}" y="${labelY + 14}" dominant-baseline="middle" fill="${theme.muted}" font-size="10">${escape(detail)}</text>`,
-      );
-    }
   }
 
-  parts.push(
-    `<text x="${PADDING}" y="${PADDING + 4}" fill="${theme.muted}" font-size="11">How applications moved between statuses. Band width is the number of jobs.</text>`,
-    '</svg>',
-  );
+  parts.push('</svg>');
   return parts.join('');
 }

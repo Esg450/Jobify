@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "seed": "tsx --env-file-if-exists=../../.env src/seed.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.129.0",
@@ -38,6 +39,7 @@
     "@types/node": "^24.19.0",
     "@types/turndown": "^5.0.6",
     "drizzle-kit": "^0.31.11",
+    "tsx": "^4.23.15",
     "typescript": "~5.9",
     "vitest": "^5.0.2"
   }

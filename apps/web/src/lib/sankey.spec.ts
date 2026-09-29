@@ -37,7 +37,7 @@ function job(id: number, statuses: TimelineJob['status'][]): TimelineJob {
 }
 
 describe('buildSankey', () => {
-  it('counts the moves between statuses', () => {
+  it('counts the moves between statuses and splits outcomes by the stage they came from', () => {
     const data = buildSankey([
       job(1, ['applied', 'screening', 'interviewing', 'offer']),
       job(2, ['applied', 'screening', 'rejected']),
@@ -45,34 +45,39 @@ describe('buildSankey', () => {
       job(4, ['saved']),
     ]);
 
-    expect(data.nodes).toEqual([
-      { status: 'saved', value: 1, current: 1 },
-      { status: 'applied', value: 3, current: 0 },
-      { status: 'screening', value: 2, current: 0 },
-      { status: 'interviewing', value: 1, current: 0 },
-      { status: 'offer', value: 1, current: 1 },
-      { status: 'rejected', value: 2, current: 2 },
+    expect(data.nodes.map((node) => [node.id, node.value])).toEqual([
+      ['saved', 1],
+      ['applied', 3],
+      ['screening', 2],
+      ['interviewing', 1],
+      ['offer', 1],
+      ['rejected@applied', 1],
+      ['rejected@screening', 1],
     ]);
     expect(data.links).toContainEqual({ source: 'applied', target: 'screening', value: 2 });
-    expect(data.links).toContainEqual({ source: 'applied', target: 'rejected', value: 1 });
-    expect(data.links).toContainEqual({ source: 'screening', target: 'rejected', value: 1 });
+    expect(data.links).toContainEqual({ source: 'applied', target: 'rejected@applied', value: 1 });
+    expect(data.links).toContainEqual({
+      source: 'screening',
+      target: 'rejected@screening',
+      value: 1,
+    });
   });
 
   it('uses the current status when the history is incomplete', () => {
     const data = buildSankey([{ ...job(1, ['applied']), status: 'ghosted' }]);
-    expect(data.links).toEqual([{ source: 'applied', target: 'ghosted', value: 1 }]);
+    expect(data.links).toEqual([{ source: 'applied', target: 'ghosted@applied', value: 1 }]);
   });
 });
 
 describe('renderSankeySvg', () => {
-  it('renders one band per link and labels every node', () => {
+  it('renders one band per link and labels every node with its count', () => {
     const svg = renderSankeySvg(
       buildSankey([job(1, ['applied', 'screening', 'rejected']), job(2, ['applied', 'offer'])]),
       GANTT_THEMES.light,
     );
     expect(svg.startsWith('<svg')).toBe(true);
     expect((svg.match(/<path /g) ?? []).length).toBe(3);
-    expect(svg).toContain('Applied <tspan');
+    expect(svg).toContain('>Applied</text>');
     expect(svg).toContain('Screening → Rejected: 1');
   });
 

@@ -217,14 +217,15 @@ npm install
 npm run dev        # API on :3000 and the web app on http://localhost:5173
 ```
 
-| Command                              | What it does                                 |
-| ------------------------------------ | -------------------------------------------- |
-| `npm run dev`                        | Run the API and web app with live reload     |
-| `npm test`                           | Run the test suite                           |
-| `npm run lint` / `npm run format`    | Lint / format the code                       |
-| `npm run typecheck`                  | Type-check both apps                         |
-| `npm run build`                      | Production build of both apps                |
-| `npm run db:generate -w apps/server` | Create a migration after changing the schema |
+| Command                              | What it does                                                  |
+| ------------------------------------ | ------------------------------------------------------------- |
+| `npm run dev`                        | Run the API and web app with live reload                      |
+| `npm test`                           | Run the test suite                                            |
+| `npm run lint` / `npm run format`    | Lint / format the code                                        |
+| `npm run typecheck`                  | Type-check both apps                                          |
+| `npm run build`                      | Production build of both apps                                 |
+| `npm run db:generate -w apps/server` | Create a migration after changing the schema                  |
+| `npm run seed -w apps/server`        | Fill your account with demo jobs (`-- --remove` deletes them) |
 
 The stack is [NestJS](https://nestjs.com/) with [Drizzle ORM](https://orm.drizzle.team/) on
 SQLite for the API, and [React](https://react.dev/) with [Vite](https://vite.dev/),

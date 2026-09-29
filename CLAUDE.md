@@ -10,6 +10,7 @@ npm workspaces monorepo (`apps/server`, `apps/web`), Node 24.
 - `npm test` — Vitest in both workspaces (server specs plus the web chart helpers); single file: `npx vitest run src/importers/parsers/workday.parser.spec.ts` from `apps/server`, or filter by name with `-t "pattern"`
 - `npm run lint` / `npm run format:check` / `npm run typecheck` / `npm run build` — all run in CI
 - `npm run db:generate -w apps/server` — generate a Drizzle migration after editing `apps/server/src/database/schema.ts` (migrations apply automatically on startup)
+- `npm run seed -w apps/server [username] [--remove]` — add (or delete) demo jobs tagged `demo` for local development (`src/seed.ts`, runs with tsx against `DATA_DIR`)
 - `docker build -t jobify .` — production image (single container: API serves `apps/web/dist`)
 
 ## Architecture
