@@ -14,7 +14,8 @@ The API runs on port 3000 and the web app on <http://localhost:5173>, which prox
 API. The development database is created in `apps/server/data/`. Copy `.env.example` to `.env`
 to set environment variables locally.
 
-Before opening a pull request, make sure these pass:
+Every pull request runs the same checks in CI, plus a build of the Docker image, and nothing is
+published until they pass. To catch problems before you push, run:
 
 ```sh
 npm run lint
@@ -124,7 +125,8 @@ Releases are published from GitHub's **Releases** page:
    the target.
 3. Click **Generate release notes**, edit them if you like, and **Publish release**.
 
-The `Docker image` workflow then builds the image and publishes `:1.2.3`, `:1.2` and `:latest`,
+The CI workflow then runs the checks against the tagged commit and, only if they pass, builds the
+image and publishes `:1.2.3`, `:1.2` and `:latest`,
 which Unraid and other installs pick up as an update. Tick **Set as a pre-release** to publish a
 test build under its version tag without moving `:latest`. Every push to `main` also publishes
 `:edge`.

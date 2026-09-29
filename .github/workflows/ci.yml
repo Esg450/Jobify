@@ -1,12 +1,28 @@
 name: CI
 
+# Every push to main, pull request and release runs the checks. The Docker image is only
+# built once they pass: on pull requests as a build-only check, on main as :edge, and on a
+# published release (tagged like v1.2.3) as :1.2.3, :1.2 and :latest, which is what Unraid
+# and other installs track. Pre-releases get their version tags but not :latest.
 on:
   push:
     branches: [main]
   pull_request:
+  release:
+    types: [published]
+
+# Superseded pull request runs are cancelled; main and release runs always finish.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+  packages: write
 
 jobs:
   check:
+    name: Lint, test and build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -20,3 +36,43 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+
+  image:
+    name: Docker image
+    needs: check
+    runs-on: ubuntu-latest
+    env:
+      # Pull requests only prove the image builds; nothing is published.
+      PUBLISH: ${{ github.event_name != 'pull_request' }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/setup-qemu-action@v3
+        if: env.PUBLISH == 'true'
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        if: env.PUBLISH == 'true'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          flavor: latest=false
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable=${{ github.event_name == 'release' && !github.event.release.prerelease }}
+            type=edge,branch=main
+            type=ref,event=pr
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: ${{ env.PUBLISH == 'true' && 'linux/amd64,linux/arm64' || 'linux/amd64' }}
+          push: ${{ env.PUBLISH == 'true' }}
+          build-args: VERSION=${{ steps.meta.outputs.version }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
