@@ -124,7 +124,7 @@ const CAREERS_WORDS =
   /^(?:careers?|jobs?|job (?:details?|openings?|opportunities|search|board)|open (?:positions?|roles?)|current openings|vacancies|join (?:us|our team|the team)|work (?:with|for|at) us|we'?re hiring|hiring|employment|apply(?: now)?|home)$/i;
 
 const JOB_SITE_WORDS =
-  /^(?:linkedin|indeed|glassdoor|ziprecruiter|monster|dice|wellfound|angellist|welcome to the jungle|otta|builtin(?: [a-z]+)?|greenhouse|lever|workday|ashby|smartrecruiters|workable|jobvite|icims|myworkdayjobs)$/i;
+  /^(?:linkedin|indeed|glassdoor|ziprecruiter|monster|dice|wellfound|angellist|welcome to the jungle|otta|builtin(?: [a-z]+)?|greenhouse|lever|workday|ashby|smartrecruiters|workable|jobvite|icims|myworkdayjobs|rippling(?: recruiting)?|bamboohr|recruitee|teamtailor|personio|oracle cloud)$/i;
 
 const TITLE_SEPARATORS = /\s+(?:[-–—|·•:]|::|>>)\s+/;
 

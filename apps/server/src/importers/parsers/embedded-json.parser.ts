@@ -72,6 +72,8 @@ const COMPANY_KEYS = [
   'brandName',
 ];
 const LOCATION_KEYS = [
+  'workLocations',
+  'work_locations',
   'location',
   'locationName',
   'location_name',
@@ -114,6 +116,7 @@ const WORKPLACE_KEYS = [
   'is_remote',
 ];
 const POSTED_KEYS = [
+  'createdOn',
   'datePosted',
   'postedDate',
   'posted_date',
@@ -378,6 +381,8 @@ function jobScore(object: Json): number {
   const description = stringValue(pick(object, DESCRIPTION_KEYS));
   if (!title || title.length < 3 || title.length > 200 || isListingTitle(title)) return 0;
   if (!description || description.length < 200) return 0;
+  // UI translations ("{{companyName}} uses AI...") also come as title + description pairs.
+  if (/\{\{|%\(|\$\{/.test(title) || /\{\{/.test(description)) return 0;
 
   let score = titleKey === 'name' ? 2 : 4;
   score += Math.min(description.length / 1000, 5);
@@ -416,7 +421,7 @@ function stringValue(value: unknown): string | undefined {
   }
   if (value && typeof value === 'object') {
     const object = value as Json;
-    return stringValue(
+    const named = stringValue(
       pick(object, [
         'html',
         'text',
@@ -429,6 +434,12 @@ function stringValue(value: unknown): string | undefined {
         'content',
       ]),
     );
+    if (named) return named;
+    // Descriptions split into sections ({ company: "<p>…", role: "<p>…" }).
+    const sections = Object.values(object).filter(
+      (part): part is string => typeof part === 'string' && part.trim().length > 10,
+    );
+    return sections.length ? sections.join('\n') : undefined;
   }
   return undefined;
 }

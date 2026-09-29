@@ -35,7 +35,7 @@ container with an embedded SQLite database, so there is nothing else to set up.
 - **Dashboard.** Active applications, response rate, offers, your pipeline at a glance and
   applications per week.
 - **Import from job sites.** Paste a link and Jobify fills in the form. Dedicated importers for
-  LinkedIn, Workday, Greenhouse, Lever, Ashby, SmartRecruiters, Workable and Oracle career
+  LinkedIn, Workday, Greenhouse, Lever, Ashby, SmartRecruiters, Workable, Rippling and Oracle career
   sites, plus generic importers that read the structured data, embedded job data and page
   content that most other career pages have. Pages pasted from Indeed, Glassdoor and other
   sites that block automated access are recognised too, and plain text works as well.

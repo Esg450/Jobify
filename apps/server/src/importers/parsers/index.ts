@@ -7,6 +7,7 @@ import { LeverParser } from './lever.parser.js';
 import { LinkedInParser } from './linkedin.parser.js';
 import { OracleHcmParser } from './oracle-hcm.parser.js';
 import { RenderedPageParser } from './rendered-page.parser.js';
+import { RipplingParser } from './rippling.parser.js';
 import { SmartRecruitersParser } from './smartrecruiters.parser.js';
 import { WebPageParser } from './web-page.parser.js';
 import { WorkableParser } from './workable.parser.js';
@@ -31,6 +32,7 @@ export const JOB_PARSERS: readonly JobParser[] = [
   new SmartRecruitersParser(),
   new WorkableParser(),
   new OracleHcmParser(),
+  new RipplingParser(),
   new LinkedInParser(),
   new JsonLdParser(),
   new RenderedPageParser(),

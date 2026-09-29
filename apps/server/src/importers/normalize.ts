@@ -69,8 +69,8 @@ export function inferWorkplaceType(
 }
 
 const EMPLOYMENT_PATTERNS: [RegExp, EmploymentType][] = [
-  [/full[\s_-]?time|permanent|regular/, 'full_time'],
-  [/part[\s_-]?time/, 'part_time'],
+  [/full[\s_-]?time|permanent|regular|(?:^|[\s_-])ft$/, 'full_time'],
+  [/part[\s_-]?time|(?:^|[\s_-])pt$/, 'part_time'],
   [/contract|contractor/, 'contract'],
   [/intern/, 'internship'],
   [/temp/, 'temporary'],

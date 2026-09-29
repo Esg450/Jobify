@@ -81,6 +81,32 @@ describe('EmbeddedJsonParser', () => {
     });
   });
 
+  it('skips UI translations and reads descriptions split into sections', async () => {
+    const data = {
+      i18n: {
+        title: '{{companyName}} uses AI to analyze applications',
+        description: 'x'.repeat(300),
+      },
+      jobPost: {
+        name: 'Lead Engineer',
+        description: { company: '<p>About us.</p>', role: `<p>${'The role. '.repeat(30)}</p>` },
+        workLocations: ['Remote (United States)'],
+        companyName: 'Root Insurance',
+        createdOn: '2026-08-24T07:58:53-07:00',
+      },
+    };
+    const page = fakePage({
+      html: `<script id="__NEXT_DATA__" type="application/json">${JSON.stringify(data)}</script>`,
+    });
+    await expect(parser.parse(page)).resolves.toMatchObject({
+      title: 'Lead Engineer',
+      company: 'Root Insurance',
+      location: 'Remote (United States)',
+      postedOn: '2026-08-24',
+      description: expect.stringContaining('About us.'),
+    });
+  });
+
   it('returns null when scripts hold no posting', async () => {
     const page = fakePage({
       html: '<script type="application/json">{"user":{"name":"x","description":"short"}}</script>',
