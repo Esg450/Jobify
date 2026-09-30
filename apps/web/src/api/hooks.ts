@@ -13,6 +13,7 @@ import type {
   JobInput,
   JobQuery,
   JobSummary,
+  Preferences,
   Profile,
   Stats,
   TimelineJob,
@@ -29,6 +30,7 @@ export const queryKeys = {
   aiSettings: ['ai', 'settings'] as const,
   aiProviders: ['ai', 'providers'] as const,
   profile: ['profile'] as const,
+  preferences: ['preferences'] as const,
   importSites: ['import', 'sites'] as const,
   auth: ['auth'] as const,
   health: ['health'] as const,
@@ -320,6 +322,32 @@ export function useUpdateProfile() {
   return useMutation({
     mutationFn: (profile: Partial<Profile>) => api.put<Profile>('/account/profile', profile),
     onSuccess: (profile) => queryClient.setQueryData(queryKeys.profile, profile),
+  });
+}
+
+export function usePreferences() {
+  return useQuery({
+    queryKey: queryKeys.preferences,
+    queryFn: () => api.get<Preferences>('/account/preferences'),
+  });
+}
+
+/** Saves preferences, applying them immediately and rolling back if the server rejects them. */
+export function useUpdatePreferences() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (changes: Partial<Preferences>) =>
+      api.put<Preferences>('/account/preferences', changes),
+    onMutate: async (changes) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.preferences });
+      const previous = queryClient.getQueryData<Preferences>(queryKeys.preferences);
+      if (previous) queryClient.setQueryData(queryKeys.preferences, { ...previous, ...changes });
+      return { previous };
+    },
+    onError: (_error, _changes, context) => {
+      if (context?.previous) queryClient.setQueryData(queryKeys.preferences, context.previous);
+    },
+    onSuccess: (preferences) => queryClient.setQueryData(queryKeys.preferences, preferences),
   });
 }
 

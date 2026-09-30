@@ -35,7 +35,8 @@ container with an embedded SQLite database, so there is nothing else to set up.
 - **Timeline.** Log interviews, notes and follow-ups against each job. Upcoming interviews,
   follow-up dates and deadlines show up on the dashboard.
 - **Dashboard.** Active applications, response rate, offers, your pipeline at a glance and
-  applications per week.
+  applications per week. Drag the cards into the order you like and hide the ones you don't
+  need; the layout is saved to your account.
 - **Import from job sites.** Paste a link and Jobify fills in the form. Dedicated importers for
   LinkedIn, Workday, Greenhouse, Lever, Ashby, SmartRecruiters, Workable, Rippling and Oracle career
   sites, plus generic importers that read the structured data, embedded job data and page

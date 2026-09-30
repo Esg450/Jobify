@@ -11,6 +11,8 @@ import { jobs, sessions, users, type User, type UserProfile } from '../database/
 import { SettingsService } from '../settings/settings.service.js';
 import { hashPassword, verifyPassword } from './passwords.js';
 import { EMPTY_PROFILE, type ProfileDto } from './profile.dto.js';
+import type { PreferencesDto } from './preferences.dto.js';
+import { normalizeDashboard, type UserPreferences } from './preferences.js';
 import type { CreateUserDto, UpdateUserDto } from './users.dto.js';
 
 /** A user as exposed by the API: never includes the password hash or profile. */
@@ -143,6 +145,22 @@ export class UsersService {
     const profile = { ...(await this.getProfile(id)), ...changes };
     await this.db.update(users).set({ profile }).where(eq(users.id, id));
     return profile;
+  }
+
+  async getPreferences(id: number): Promise<UserPreferences> {
+    const user = await this.db.query.users.findFirst({
+      where: eq(users.id, id),
+      columns: { preferences: true },
+    });
+    if (!user) throw new NotFoundException(`User ${id} not found`);
+    return { dashboard: normalizeDashboard(user.preferences.dashboard) };
+  }
+
+  async updatePreferences(id: number, changes: PreferencesDto): Promise<UserPreferences> {
+    const preferences = { ...(await this.getPreferences(id)), ...changes };
+    preferences.dashboard = normalizeDashboard(preferences.dashboard);
+    await this.db.update(users).set({ preferences }).where(eq(users.id, id));
+    return preferences;
   }
 
   private async assertUsernameAvailable(username: string): Promise<void> {

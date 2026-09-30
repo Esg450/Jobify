@@ -210,6 +210,29 @@ export interface Profile {
   preferences: string;
 }
 
+/** Dashboard cards in their default order. Mirrors `users/preferences.ts` on the server. */
+export const DASHBOARD_CARDS = [
+  'active',
+  'applied',
+  'response_rate',
+  'offers',
+  'pipeline',
+  'weekly',
+  'upcoming',
+  'activity',
+] as const;
+export type DashboardCard = (typeof DASHBOARD_CARDS)[number];
+
+export interface DashboardLayout {
+  /** Every card, visible or not, in display order. */
+  order: DashboardCard[];
+  hidden: DashboardCard[];
+}
+
+export interface Preferences {
+  dashboard: DashboardLayout;
+}
+
 export type UserRole = 'admin' | 'user';
 
 export interface User {

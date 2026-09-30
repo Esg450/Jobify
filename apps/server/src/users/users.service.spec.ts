@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { jobs } from '../database/schema.js';
 import { createTestDatabase, type TestDatabase } from '../database/testing.js';
 import { SettingsService } from '../settings/settings.service.js';
+import { DASHBOARD_CARDS } from './preferences.js';
 import { UsersService } from './users.service.js';
 
 describe('UsersService', () => {
@@ -92,5 +93,22 @@ describe('UsersService', () => {
       name: '',
     });
     await expect(users.getProfile(bob.id)).resolves.toMatchObject({ headline: '' });
+  });
+
+  it('stores a dashboard layout per user and keeps it complete', async () => {
+    const alice = await users.create({ username: 'alice', password: 'password123' });
+
+    await expect(users.getPreferences(alice.id)).resolves.toEqual({
+      dashboard: { order: [...DASHBOARD_CARDS], hidden: [] },
+    });
+
+    const saved = await users.updatePreferences(alice.id, {
+      dashboard: { order: ['pipeline', 'active', 'active'], hidden: ['weekly'] },
+    });
+    // Unknown and duplicate cards are dropped; cards left out are appended so none go missing.
+    expect(saved.dashboard.order.slice(0, 2)).toEqual(['pipeline', 'active']);
+    expect([...saved.dashboard.order].sort()).toEqual([...DASHBOARD_CARDS].sort());
+    expect(saved.dashboard.hidden).toEqual(['weekly']);
+    await expect(users.getPreferences(alice.id)).resolves.toEqual(saved);
   });
 });

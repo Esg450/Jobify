@@ -7,6 +7,7 @@ import {
   SALARY_PERIODS,
   WORKPLACE_TYPES,
 } from '../jobs/job.constants.js';
+import type { UserPreferences } from '../users/preferences.js';
 
 const timestamps = {
   createdAt: integer('created_at', { mode: 'timestamp_ms' })
@@ -37,6 +38,10 @@ export const users = sqliteTable('users', {
   role: text('role', { enum: USER_ROLES }).notNull().default('user'),
   /** Background the AI features use to personalize output. */
   profile: text('profile', { mode: 'json' }).$type<Partial<UserProfile>>().notNull().default({}),
+  preferences: text('preferences', { mode: 'json' })
+    .$type<Partial<UserPreferences>>()
+    .notNull()
+    .default({}),
   ...timestamps,
 });
 

@@ -1,6 +1,7 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Patch, Put, Req } from '@nestjs/common';
 import { CurrentUser, type AuthenticatedRequest } from '../auth/decorators.js';
 import { SessionsService } from '../auth/sessions.service.js';
+import { PreferencesDto } from './preferences.dto.js';
 import { ProfileDto } from './profile.dto.js';
 import { ChangePasswordDto, UpdateAccountDto } from './users.dto.js';
 import { UsersService, type PublicUser } from './users.service.js';
@@ -39,5 +40,15 @@ export class AccountController {
   @Put('profile')
   updateProfile(@CurrentUser() user: PublicUser, @Body() dto: ProfileDto) {
     return this.users.updateProfile(user.id, dto);
+  }
+
+  @Get('preferences')
+  getPreferences(@CurrentUser() user: PublicUser) {
+    return this.users.getPreferences(user.id);
+  }
+
+  @Put('preferences')
+  updatePreferences(@CurrentUser() user: PublicUser, @Body() dto: PreferencesDto) {
+    return this.users.updatePreferences(user.id, dto);
   }
 }

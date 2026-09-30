@@ -1,21 +1,50 @@
 import {
+  closestCenter,
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  rectSortingStrategy,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import {
   BriefcaseBusiness,
   CalendarClock,
   CalendarDays,
+  Check,
+  Eye,
+  EyeOff,
   Flag,
+  GripVertical,
   History,
   MessagesSquare,
   Plus,
+  RotateCcw,
   Send,
+  SlidersHorizontal,
   Trophy,
 } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
-import { useStats } from '../api/hooks';
-import { JOB_STATUSES, type Stats } from '../api/types';
+import { usePreferences, useStats, useUpdatePreferences } from '../api/hooks';
+import {
+  DASHBOARD_CARDS,
+  JOB_STATUSES,
+  type DashboardCard,
+  type DashboardLayout,
+  type Stats,
+} from '../api/types';
 import { describeEvent } from '../components/EventDescription';
 import { PageHeader } from '../components/PageHeader';
-import { ButtonLink } from '../components/ui/Button';
+import { Button, ButtonLink } from '../components/ui/Button';
 import { Card, CardHeader } from '../components/ui/Card';
 import { Alert, EmptyState, errorText } from '../components/ui/feedback';
 import { PageSpinner } from '../components/ui/Spinner';
@@ -23,10 +52,112 @@ import { cn } from '../lib/cn';
 import { formatDate, formatDateTime, formatRelative } from '../lib/format';
 import { STATUS_LABELS, STATUS_STYLES } from '../lib/labels';
 
+/** What each dashboard card shows. `wide` cards take half a row; the others a quarter. */
+const CARDS: Record<
+  DashboardCard,
+  { title: string; wide?: boolean; render: (stats: Stats) => ReactNode }
+> = {
+  active: {
+    title: 'Active',
+    render: (stats) => (
+      <StatTile
+        icon={<BriefcaseBusiness />}
+        label="Active"
+        value={stats.active}
+        hint={`${stats.total} tracked`}
+      />
+    ),
+  },
+  applied: {
+    title: 'Applied',
+    render: (stats) => (
+      <StatTile icon={<Send />} label="Applied" value={stats.applied} hint="Applications sent" />
+    ),
+  },
+  response_rate: {
+    title: 'Response rate',
+    render: (stats) => (
+      <StatTile
+        icon={<MessagesSquare />}
+        label="Response rate"
+        value={stats.responseRate === null ? '–' : `${Math.round(stats.responseRate * 100)}%`}
+        hint={`${stats.byStatus.screening + stats.byStatus.interviewing} in progress`}
+      />
+    ),
+  },
+  offers: {
+    title: 'Offers',
+    render: (stats) => (
+      <StatTile
+        icon={<Trophy />}
+        label="Offers"
+        value={stats.byStatus.offer + stats.byStatus.accepted}
+        hint={`${stats.byStatus.accepted} accepted`}
+      />
+    ),
+  },
+  pipeline: {
+    title: 'Pipeline',
+    wide: true,
+    render: (stats) => (
+      <Card className="h-full">
+        <CardHeader title="Pipeline" description="Where your non-archived jobs stand." />
+        <div className="p-5">
+          <Pipeline stats={stats} />
+        </div>
+      </Card>
+    ),
+  },
+  weekly: {
+    title: 'Applications per week',
+    wide: true,
+    render: (stats) => (
+      <Card className="h-full">
+        <CardHeader title="Applications per week" description="Last 12 weeks" />
+        <div className="p-5">
+          <WeeklyChart weekly={stats.weekly} />
+        </div>
+      </Card>
+    ),
+  },
+  upcoming: {
+    title: 'Coming up',
+    wide: true,
+    render: (stats) => (
+      <Card className="h-full">
+        <CardHeader title="Coming up" description="Interviews, follow-ups and deadlines." />
+        <UpcomingList upcoming={stats.upcoming} />
+      </Card>
+    ),
+  },
+  activity: {
+    title: 'Recent activity',
+    wide: true,
+    render: (stats) => (
+      <Card className="h-full">
+        <CardHeader title="Recent activity" />
+        <ActivityList activity={stats.recentActivity} />
+      </Card>
+    ),
+  },
+};
+
+const DEFAULT_LAYOUT: DashboardLayout = { order: [...DASHBOARD_CARDS], hidden: [] };
+
+function isDefault(layout: DashboardLayout): boolean {
+  return (
+    layout.hidden.length === 0 &&
+    layout.order.every((card, index) => card === DASHBOARD_CARDS[index])
+  );
+}
+
 export function DashboardPage() {
   const { data: stats, isPending, error } = useStats();
+  const preferences = usePreferences();
+  const save = useUpdatePreferences();
+  const [editing, setEditing] = useState(false);
 
-  if (isPending) return <PageSpinner />;
+  if (isPending || preferences.isPending) return <PageSpinner />;
   if (error) return <Alert>{errorText(error)}</Alert>;
 
   if (stats.total === 0) {
@@ -46,8 +177,12 @@ export function DashboardPage() {
     );
   }
 
-  const inProcess = stats.byStatus.screening + stats.byStatus.interviewing;
-  const offers = stats.byStatus.offer + stats.byStatus.accepted;
+  // If the preferences failed to load, show the default layout rather than nothing.
+  const layout = preferences.data?.dashboard ?? DEFAULT_LAYOUT;
+  const update = (dashboard: DashboardLayout) => save.mutate({ dashboard });
+  const hide = (card: DashboardCard) => update({ ...layout, hidden: [...layout.hidden, card] });
+  const show = (card: DashboardCard) =>
+    update({ ...layout, hidden: layout.hidden.filter((hidden) => hidden !== card) });
 
   return (
     <>
@@ -55,60 +190,178 @@ export function DashboardPage() {
         title="Dashboard"
         description="An overview of your job search."
         actions={
-          <ButtonLink to="/jobs/new" variant="primary" icon={<Plus className="size-4" />}>
-            Add job
-          </ButtonLink>
+          editing ? (
+            <>
+              <Button
+                variant="ghost"
+                icon={<RotateCcw className="size-4" />}
+                onClick={() => update(DEFAULT_LAYOUT)}
+                disabled={isDefault(layout)}
+              >
+                Reset
+              </Button>
+              <Button
+                variant="primary"
+                icon={<Check className="size-4" />}
+                onClick={() => setEditing(false)}
+              >
+                Done
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                icon={<SlidersHorizontal className="size-4" />}
+                onClick={() => setEditing(true)}
+              >
+                Customize
+              </Button>
+              <ButtonLink to="/jobs/new" variant="primary" icon={<Plus className="size-4" />}>
+                Add job
+              </ButtonLink>
+            </>
+          )
         }
       />
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatTile
-          icon={<BriefcaseBusiness />}
-          label="Active"
-          value={stats.active}
-          hint={`${stats.total} tracked`}
-        />
-        <StatTile icon={<Send />} label="Applied" value={stats.applied} hint="Applications sent" />
-        <StatTile
-          icon={<MessagesSquare />}
-          label="Response rate"
-          value={stats.responseRate === null ? '–' : `${Math.round(stats.responseRate * 100)}%`}
-          hint={`${inProcess} in progress`}
-        />
-        <StatTile
-          icon={<Trophy />}
-          label="Offers"
-          value={offers}
-          hint={`${stats.byStatus.accepted} accepted`}
-        />
-      </div>
+      {editing && (
+        <div className="mb-4 flex flex-wrap items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
+          <span>Drag cards to reorder them.</span>
+          {layout.hidden.length > 0 && <span className="ml-2">Hidden:</span>}
+          {layout.hidden.map((card) => (
+            <button
+              key={card}
+              type="button"
+              onClick={() => show(card)}
+              className="flex items-center gap-1.5 rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
+            >
+              <Eye className="size-3.5" aria-hidden />
+              {CARDS[card].title}
+            </button>
+          ))}
+        </div>
+      )}
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader title="Pipeline" description="Where your non-archived jobs stand." />
-          <div className="p-5">
-            <Pipeline stats={stats} />
-          </div>
-        </Card>
-        <Card>
-          <CardHeader title="Applications per week" description="Last 12 weeks" />
-          <div className="p-5">
-            <WeeklyChart weekly={stats.weekly} />
-          </div>
-        </Card>
-      </div>
-
-      <div className="mt-6 grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader title="Coming up" description="Interviews, follow-ups and deadlines." />
-          <UpcomingList upcoming={stats.upcoming} />
-        </Card>
-        <Card>
-          <CardHeader title="Recent activity" />
-          <ActivityList activity={stats.recentActivity} />
-        </Card>
-      </div>
+      <CardGrid layout={layout} editing={editing} onReorder={update}>
+        {(card) => (
+          <EditableCard card={card} editing={editing} onHide={() => hide(card)}>
+            {CARDS[card].render(stats)}
+          </EditableCard>
+        )}
+      </CardGrid>
     </>
+  );
+}
+
+/** The visible cards in a sortable grid. Hidden cards keep their slot in the stored order. */
+function CardGrid({
+  layout,
+  editing,
+  onReorder,
+  children,
+}: {
+  layout: DashboardLayout;
+  editing: boolean;
+  onReorder: (layout: DashboardLayout) => void;
+  children: (card: DashboardCard) => ReactNode;
+}) {
+  const visible = layout.order.filter((card) => !layout.hidden.includes(card));
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const onDragEnd = ({ active, over }: DragEndEvent) => {
+    if (!over || active.id === over.id) return;
+    const moved = arrayMove(
+      visible,
+      visible.indexOf(active.id as DashboardCard),
+      visible.indexOf(over.id as DashboardCard),
+    );
+    let next = 0;
+    onReorder({
+      ...layout,
+      order: layout.order.map((card) => (layout.hidden.includes(card) ? card : moved[next++])),
+    });
+  };
+
+  const grid = (
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {visible.map((card) => (
+        <div key={card} className={cn(CARDS[card].wide && 'sm:col-span-2')}>
+          {children(card)}
+        </div>
+      ))}
+    </div>
+  );
+  if (!editing) return grid;
+
+  return (
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+      <SortableContext items={visible} strategy={rectSortingStrategy}>
+        {grid}
+      </SortableContext>
+    </DndContext>
+  );
+}
+
+/** Adds the drag handle and hide button to a card while the dashboard is being customised. */
+function EditableCard({
+  card,
+  editing,
+  onHide,
+  children,
+}: {
+  card: DashboardCard;
+  editing: boolean;
+  onHide: () => void;
+  children: ReactNode;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: card, disabled: !editing });
+
+  if (!editing) return <div className="h-full">{children}</div>;
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Translate.toString(transform), transition }}
+      className={cn(
+        'relative h-full rounded-xl ring-2 ring-indigo-300 ring-offset-2 ring-offset-white dark:ring-indigo-700 dark:ring-offset-zinc-950',
+        isDragging && 'z-10 opacity-80 shadow-xl',
+      )}
+    >
+      <div className="pointer-events-none h-full select-none" aria-hidden>
+        {children}
+      </div>
+      <div className="absolute top-2 right-2 flex items-center gap-1 rounded-lg bg-white/90 p-0.5 shadow-sm ring-1 ring-zinc-200 backdrop-blur dark:bg-zinc-900/90 dark:ring-zinc-700">
+        <button
+          ref={setActivatorNodeRef}
+          type="button"
+          className="cursor-grab rounded-md p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 active:cursor-grabbing dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+          aria-label={`Move ${CARDS[card].title}`}
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical className="size-4" />
+        </button>
+        <button
+          type="button"
+          onClick={onHide}
+          className="rounded-md p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+          aria-label={`Hide ${CARDS[card].title}`}
+        >
+          <EyeOff className="size-4" />
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -124,7 +377,7 @@ function StatTile({
   hint: string;
 }) {
   return (
-    <Card className="flex items-start gap-4 p-5">
+    <Card className="flex h-full items-start gap-4 p-5">
       <div className="rounded-lg bg-indigo-50 p-2.5 text-indigo-600 dark:bg-indigo-950 dark:text-indigo-400 [&>svg]:size-5">
         {icon}
       </div>
