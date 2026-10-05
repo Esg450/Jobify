@@ -1,6 +1,6 @@
 import { Download, GanttChart, Waypoints } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { useTimeline } from '../api/hooks';
+import { useTimeline, useViewedHunt } from '../api/hooks';
 import { PageHeader } from '../components/PageHeader';
 import { Button, ButtonLink } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
@@ -46,13 +46,18 @@ export function TimelinePage() {
   const [exportError, setExportError] = useState<string>();
   const { data: jobs, isPending, error } = useTimeline(includeArchived);
 
+  const { hunt, hunts } = useViewedHunt();
+  const endedOn = hunt?.endedOn;
+
   const theme = GANTT_THEMES[darkExport ? 'dark' : 'light'];
   const svg = useMemo(() => {
     if (!jobs) return '';
+    // Open applications in a finished hunt stop at its end instead of running on to today.
+    const until = endedOn ? new Date(`${endedOn}T23:59:59`) : undefined;
     return chart === 'gantt'
-      ? renderGanttSvg(buildGanttRows(jobs), theme)
+      ? renderGanttSvg(buildGanttRows(jobs, until), theme, until)
       : renderSankeySvg(buildSankey(jobs), theme);
-  }, [jobs, chart, theme]);
+  }, [jobs, chart, theme, endedOn]);
   const filename = `jobify-${chart === 'gantt' ? 'timeline' : 'flow'}-${todayIso()}`;
 
   const save = async (format: 'png' | 'svg') => {
@@ -68,7 +73,7 @@ export function TimelinePage() {
   return (
     <>
       <PageHeader
-        title="Timeline"
+        title={hunts.length > 1 && hunt ? `Timeline · ${hunt.name}` : 'Timeline'}
         description={CHARTS.find((option) => option.id === chart)!.description}
         actions={
           <>

@@ -22,6 +22,13 @@
       "when": 1790737898593,
       "tag": "0002_preferences",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1791229759083,
+      "tag": "0003_job_hunts",
+      "breakpoints": true
     }
   ]
 }

@@ -20,6 +20,7 @@ import {
   CalendarClock,
   CalendarDays,
   Check,
+  CircleCheck,
   Eye,
   EyeOff,
   Flag,
@@ -34,15 +35,17 @@ import {
 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
-import { usePreferences, useStats, useUpdatePreferences } from '../api/hooks';
+import { usePreferences, useStats, useUpdatePreferences, useViewedHunt } from '../api/hooks';
 import {
   DASHBOARD_CARDS,
   JOB_STATUSES,
   type DashboardCard,
   type DashboardLayout,
+  type JobHunt,
   type Stats,
 } from '../api/types';
 import { describeEvent } from '../components/EventDescription';
+import { HuntDialogs, type HuntDialog } from '../components/HuntDialogs';
 import { PageHeader } from '../components/PageHeader';
 import { Button, ButtonLink } from '../components/ui/Button';
 import { Card, CardHeader } from '../components/ui/Card';
@@ -52,10 +55,13 @@ import { cn } from '../lib/cn';
 import { formatDate, formatDateTime, formatRelative } from '../lib/format';
 import { STATUS_LABELS, STATUS_STYLES } from '../lib/labels';
 
-/** What each dashboard card shows. `wide` cards take half a row; the others a quarter. */
+/**
+ * What each dashboard card shows, given the stats of the hunt on screen. `wide` cards take half
+ * a row; the others a quarter.
+ */
 const CARDS: Record<
   DashboardCard,
-  { title: string; wide?: boolean; render: (stats: Stats) => ReactNode }
+  { title: string; wide?: boolean; render: (stats: Stats, hunt?: JobHunt) => ReactNode }
 > = {
   active: {
     title: 'Active',
@@ -111,11 +117,14 @@ const CARDS: Record<
   weekly: {
     title: 'Applications per week',
     wide: true,
-    render: (stats) => (
+    render: (stats, hunt) => (
       <Card className="h-full">
-        <CardHeader title="Applications per week" description="Last 12 weeks" />
+        <CardHeader
+          title="Applications per week"
+          description={hunt?.endedOn ? 'The last 12 weeks of the hunt' : 'Last 12 weeks'}
+        />
         <div className="p-5">
-          <WeeklyChart weekly={stats.weekly} />
+          <WeeklyChart weekly={stats.weekly} finished={Boolean(hunt?.endedOn)} />
         </div>
       </Card>
     ),
@@ -155,21 +164,29 @@ export function DashboardPage() {
   const { data: stats, isPending, error } = useStats();
   const preferences = usePreferences();
   const save = useUpdatePreferences();
+  const { hunt, hunts } = useViewedHunt();
   const [editing, setEditing] = useState(false);
+  const [dialog, setDialog] = useState<HuntDialog>(null);
 
   if (isPending || preferences.isPending) return <PageSpinner />;
   if (error) return <Alert>{errorText(error)}</Alert>;
 
   if (stats.total === 0) {
+    // Someone's very first visit gets the welcome; an empty later hunt just says it is empty.
+    const first = hunts.length < 2;
     return (
       <Card>
         <EmptyState
           icon={<BriefcaseBusiness className="size-6" />}
-          title="Welcome to Jobify"
-          description="Track every application in one place. Add a job by hand, or paste a link from LinkedIn, Workday, Greenhouse, Lever and more to import it."
+          title={first || !hunt ? 'Welcome to Jobify' : `${hunt.name} has no jobs yet`}
+          description={
+            first
+              ? 'Track every application in one place. Add a job by hand, or paste a link from LinkedIn, Workday, Greenhouse, Lever and more to import it.'
+              : 'Jobs you add now belong to this hunt. Your earlier hunts are under Job hunts.'
+          }
           action={
             <ButtonLink to="/jobs/new" variant="primary" icon={<Plus className="size-4" />}>
-              Add your first job
+              {first ? 'Add your first job' : 'Add job'}
             </ButtonLink>
           }
         />
@@ -188,7 +205,11 @@ export function DashboardPage() {
     <>
       <PageHeader
         title="Dashboard"
-        description="An overview of your job search."
+        description={
+          hunts.length > 1 && hunt
+            ? `An overview of ${hunt.name}.`
+            : 'An overview of your job search.'
+        }
         actions={
           editing ? (
             <>
@@ -224,6 +245,24 @@ export function DashboardPage() {
         }
       />
 
+      {hunt && !hunt.endedOn && stats.byStatus.accepted > 0 && (
+        <div className="mb-6 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-900 ring-1 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-100 dark:ring-emerald-900">
+          <Trophy className="size-4 shrink-0" aria-hidden />
+          <p className="min-w-0 flex-1">
+            You accepted an offer. Finish this hunt to wrap it up; nothing is deleted, and your next
+            search starts with a clean slate.
+          </p>
+          <Button
+            size="sm"
+            icon={<CircleCheck className="size-3.5" />}
+            onClick={() => setDialog({ mode: 'finish', hunt })}
+          >
+            Finish hunt
+          </Button>
+        </div>
+      )}
+      <HuntDialogs dialog={dialog} onClose={() => setDialog(null)} />
+
       {editing && (
         <div className="mb-4 flex flex-wrap items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
           <span>Drag cards to reorder them.</span>
@@ -245,7 +284,7 @@ export function DashboardPage() {
       <CardGrid layout={layout} editing={editing} onReorder={update}>
         {(card) => (
           <EditableCard card={card} editing={editing} onHide={() => hide(card)}>
-            {CARDS[card].render(stats)}
+            {CARDS[card].render(stats, hunt)}
           </EditableCard>
         )}
       </CardGrid>
@@ -427,7 +466,7 @@ function Pipeline({ stats }: { stats: Stats }) {
   );
 }
 
-function WeeklyChart({ weekly }: { weekly: Stats['weekly'] }) {
+function WeeklyChart({ weekly, finished }: { weekly: Stats['weekly']; finished: boolean }) {
   const max = Math.max(1, ...weekly.map((week) => week.count));
   return (
     <div>
@@ -449,7 +488,7 @@ function WeeklyChart({ weekly }: { weekly: Stats['weekly'] }) {
       </div>
       <div className="mt-2 flex justify-between text-xs text-zinc-500 dark:text-zinc-400">
         <span>{formatDate(weekly[0]?.week, { year: undefined })}</span>
-        <span>This week</span>
+        <span>{finished ? formatDate(weekly.at(-1)?.week, { year: undefined }) : 'This week'}</span>
       </div>
     </div>
   );

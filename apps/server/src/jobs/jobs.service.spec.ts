@@ -2,17 +2,20 @@ import { NotFoundException } from '@nestjs/common';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { today } from '../common/dates.js';
 import { createTestDatabase, type TestDatabase } from '../database/testing.js';
+import { HuntsService } from '../hunts/hunts.service.js';
 import { JobsService } from './jobs.service.js';
 
 describe('JobsService', () => {
   let database: TestDatabase;
   let jobs: JobsService;
+  let hunts: HuntsService;
   let alice: number;
   let bob: number;
 
   beforeEach(async () => {
     database = await createTestDatabase();
-    jobs = new JobsService(database.db);
+    hunts = new HuntsService(database.db);
+    jobs = new JobsService(database.db, hunts);
     alice = await database.createUser('alice');
     bob = await database.createUser('bob');
   });
@@ -94,7 +97,8 @@ describe('JobsService', () => {
     await jobs.addEvent(alice, id, {
       type: 'interview',
       title: 'Onsite',
-      occurredAt: '2026-10-05T10:00:00.000Z',
+      // Far in the future, so it always sorts after the events recorded just now.
+      occurredAt: '2099-10-05T10:00:00.000Z',
     });
     await jobs.addEvent(alice, id, { type: 'note', body: 'Not on the timeline' });
     await jobs.create(alice, { title: 'Old', company: 'Initech', archived: true });
@@ -111,6 +115,43 @@ describe('JobsService', () => {
       'Acme',
       'Initech',
     ]);
+  });
+
+  it('starts a hunt with the first job and keeps each hunt to its own jobs', async () => {
+    expect(await jobs.list(alice, {})).toEqual([]);
+    expect(await jobs.timeline(alice, true)).toEqual([]);
+
+    const first = await jobs.create(alice, { title: 'Engineer', company: 'Acme' });
+    const [earlier] = await hunts.list(alice);
+    expect(first.huntId).toBe(earlier.id);
+
+    const later = await hunts.create(alice, { name: 'Round two' });
+    await jobs.create(alice, { title: 'Designer', company: 'Globex' });
+    const companies = async (huntId?: number) =>
+      (await jobs.list(alice, { huntId })).map((job) => job.company);
+
+    // Lists and charts default to the current hunt; earlier hunts are available by id.
+    expect(await companies()).toEqual(['Globex']);
+    expect(await companies(earlier.id)).toEqual(['Acme']);
+    expect((await jobs.timeline(alice, false)).map((job) => job.company)).toEqual(['Globex']);
+    expect((await jobs.timeline(alice, false, earlier.id)).map((job) => job.company)).toEqual([
+      'Acme',
+    ]);
+
+    // A job can be added to, or moved into, a specific hunt, but only one of the user's own.
+    await jobs.create(alice, { title: 'Late entry', company: 'Initech', huntId: earlier.id });
+    await jobs.update(alice, first.id, { huntId: later.id });
+    expect((await companies()).sort()).toEqual(['Acme', 'Globex']);
+    expect(await companies(earlier.id)).toEqual(['Initech']);
+
+    const bobsJob = await jobs.create(bob, { title: 'Chef', company: 'Bistro' });
+    await expect(jobs.list(bob, { huntId: later.id })).rejects.toBeInstanceOf(NotFoundException);
+    await expect(jobs.update(bob, bobsJob.id, { huntId: later.id })).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    await expect(
+      jobs.create(bob, { title: 'Chef', company: 'Bistro', huntId: later.id }),
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 
   it('manages timeline events and deletes them with the job', async () => {

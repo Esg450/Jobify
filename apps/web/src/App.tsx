@@ -12,6 +12,7 @@ import { SetupPage } from './pages/auth/SetupPage';
 import { BoardPage } from './pages/BoardPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { EditJobPage } from './pages/EditJobPage';
+import { HuntsPage } from './pages/HuntsPage';
 import { JobDetailPage } from './pages/JobDetailPage';
 import { JobsPage } from './pages/JobsPage';
 import { NewJobPage } from './pages/NewJobPage';
@@ -34,13 +35,15 @@ const router = createBrowserRouter([
         // Errors inside a page keep the sidebar; this nested boundary catches them.
         errorElement: <RouteError />,
         children: [
-          { index: true, element: <DashboardPage /> },
-          { path: 'jobs', element: <JobsPage /> },
-          { path: 'jobs/new', element: <NewJobPage /> },
+          // `hunt` marks the pages that show one hunt's jobs; see `Layout`.
+          { index: true, element: <DashboardPage />, handle: { hunt: true } },
+          { path: 'jobs', element: <JobsPage />, handle: { hunt: true } },
+          { path: 'jobs/new', element: <NewJobPage />, handle: { hunt: true } },
           { path: 'jobs/:id', element: <JobDetailPage /> },
           { path: 'jobs/:id/edit', element: <EditJobPage /> },
-          { path: 'board', element: <BoardPage />, handle: { fullWidth: true } },
-          { path: 'timeline', element: <TimelinePage /> },
+          { path: 'board', element: <BoardPage />, handle: { fullWidth: true, hunt: true } },
+          { path: 'timeline', element: <TimelinePage />, handle: { hunt: true } },
+          { path: 'hunts', element: <HuntsPage /> },
           {
             path: 'settings',
             element: <SettingsLayout />,

@@ -6,6 +6,8 @@ import { SERVER_ROOT } from '../config/configuration.js';
 import * as schema from './schema.js';
 
 export type Database = LibSQLDatabase<typeof schema>;
+/** The database or an open transaction, for helpers that have to work inside either. */
+export type Executor = Database | Parameters<Parameters<Database['transaction']>[0]>[0];
 
 const MIGRATIONS_DIR = path.join(SERVER_ROOT, 'drizzle');
 

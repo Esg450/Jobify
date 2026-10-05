@@ -1,5 +1,5 @@
-import { Transform } from 'class-transformer';
-import { IsBoolean, IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import { IsBoolean, IsIn, IsInt, IsOptional, IsString, MaxLength } from 'class-validator';
 import {
   JOB_STATUSES,
   WORKPLACE_TYPES,
@@ -22,6 +22,12 @@ const toList = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.split(',').filter(Boolean) : value;
 
 export class QueryJobsDto {
+  /** Defaults to the user's current hunt. */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  huntId?: number;
+
   @IsOptional()
   @IsString()
   @MaxLength(200)

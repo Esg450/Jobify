@@ -3,6 +3,7 @@ import { and, asc, desc, eq, getTableColumns, inArray, like, or, type SQL } from
 import { today } from '../common/dates.js';
 import { DATABASE, type Database } from '../database/database.module.js';
 import { jobEvents, jobs, type Job, type JobEvent } from '../database/schema.js';
+import { HuntsService } from '../hunts/hunts.service.js';
 import type { JobStatus } from './job.constants.js';
 import type { CreateJobDto } from './dto/create-job.dto.js';
 import type { CreateJobEventDto, UpdateJobEventDto } from './dto/job-event.dto.js';
@@ -32,14 +33,25 @@ export interface TimelineJob {
 
 /**
  * Jobs belong to a single user. Every method takes the owner's id and behaves as if other
- * users' jobs do not exist.
+ * users' jobs do not exist. Lists and charts cover one job hunt: the requested one, or the
+ * user's current hunt.
  */
 @Injectable()
 export class JobsService {
-  constructor(@Inject(DATABASE) private readonly db: Database) {}
+  constructor(
+    @Inject(DATABASE) private readonly db: Database,
+    private readonly hunts: HuntsService,
+  ) {}
 
   async list(userId: number, query: QueryJobsDto): Promise<JobSummary[]> {
-    const filters: SQL[] = [eq(jobs.userId, userId), eq(jobs.archived, query.archived ?? false)];
+    const hunt = await this.hunts.resolve(userId, query.huntId);
+    if (!hunt) return [];
+
+    const filters: SQL[] = [
+      eq(jobs.userId, userId),
+      eq(jobs.huntId, hunt.id),
+      eq(jobs.archived, query.archived ?? false),
+    ];
     if (query.status?.length) filters.push(inArray(jobs.status, query.status));
     if (query.workplaceType?.length) filters.push(inArray(jobs.workplaceType, query.workplaceType));
     if (query.q) {
@@ -59,8 +71,15 @@ export class JobsService {
       .orderBy(direction(sortColumn), desc(jobs.id));
   }
 
-  /** Every job (optionally archived ones too) with its status changes and interviews. */
-  async timeline(userId: number, includeArchived: boolean): Promise<TimelineJob[]> {
+  /** Every job in a hunt (optionally archived ones too) with its status changes and interviews. */
+  async timeline(
+    userId: number,
+    includeArchived: boolean,
+    huntId?: number,
+  ): Promise<TimelineJob[]> {
+    const hunt = await this.hunts.resolve(userId, huntId);
+    if (!hunt) return [];
+
     const rows = await this.db
       .select({
         id: jobs.id,
@@ -71,7 +90,13 @@ export class JobsService {
         createdAt: jobs.createdAt,
       })
       .from(jobs)
-      .where(and(eq(jobs.userId, userId), includeArchived ? undefined : eq(jobs.archived, false)))
+      .where(
+        and(
+          eq(jobs.userId, userId),
+          eq(jobs.huntId, hunt.id),
+          includeArchived ? undefined : eq(jobs.archived, false),
+        ),
+      )
       .orderBy(asc(jobs.createdAt));
     if (rows.length === 0) return [];
 
@@ -120,11 +145,12 @@ export class JobsService {
   async create(userId: number, dto: CreateJobDto): Promise<JobWithEvents> {
     const status = dto.status ?? 'saved';
     const appliedOn = dto.appliedOn ?? (status === 'saved' ? null : today());
+    const huntId = await this.hunts.forNewJob(userId, dto.huntId ?? undefined);
 
     const id = await this.db.transaction(async (tx) => {
       const [job] = await tx
         .insert(jobs)
-        .values({ ...dto, userId, status, appliedOn })
+        .values({ ...dto, userId, huntId, status, appliedOn })
         .returning({ id: jobs.id });
       await tx
         .insert(jobEvents)
@@ -140,6 +166,9 @@ export class JobsService {
     const statusChanged = dto.status !== undefined && dto.status !== existing.status;
 
     const changes: UpdateJobDto = { ...dto };
+    // A job can move to another of the user's hunts, but never out of hunts altogether.
+    if (dto.huntId == null) delete changes.huntId;
+    else await this.hunts.findOne(userId, dto.huntId);
     if (statusChanged && existing.status === 'saved' && !existing.appliedOn && !dto.appliedOn) {
       changes.appliedOn = today();
     }

@@ -6,17 +6,20 @@
  *   npm run seed -w apps/server -- <username>
  *   npm run seed -w apps/server -- --remove  # delete the demo jobs again
  *
- * Demo jobs are tagged "demo" and have source "demo", which is how --remove finds them.
+ * Demo jobs are tagged "demo" and have source "demo", which is how --remove finds them. Most go
+ * into the user's active job hunt; a few go into a finished demo hunt from two years ago.
  */
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { and, eq } from 'drizzle-orm';
 import { loadConfig } from './config/configuration.js';
 import { openDatabase, type Database } from './database/database.js';
-import { jobEvents, jobs, users } from './database/schema.js';
+import { jobEvents, jobHunts, jobs, users } from './database/schema.js';
+import { HuntsService } from './hunts/hunts.service.js';
 import type { JobStatus } from './jobs/job.constants.js';
 
 const DEMO_SOURCE = 'demo';
+const DEMO_HUNT = 'Demo: an earlier job hunt';
 const DAY = 24 * 60 * 60 * 1000;
 
 interface Posting {
@@ -337,18 +340,49 @@ async function remove(db: Database, userId: number): Promise<number> {
     .delete(jobs)
     .where(and(eq(jobs.userId, userId), eq(jobs.source, DEMO_SOURCE)))
     .returning({ id: jobs.id });
+  await db.delete(jobHunts).where(and(eq(jobHunts.userId, userId), eq(jobHunts.name, DEMO_HUNT)));
   console.log(`Removed ${removed.length} demo job(s).`);
   return 0;
 }
 
 async function seed(db: Database, userId: number): Promise<number> {
-  const next = random(42);
+  const current = await new HuntsService(db).forNewJob(userId);
+  const count = await seedHunt(db, userId, current, POSTINGS, 0, Date.now());
+
+  // An earlier search that ended with an accepted offer, to show what a finished hunt looks like.
+  const pastEnd = Date.now() - 730 * DAY;
+  const [past] = await db
+    .insert(jobHunts)
+    .values({
+      userId,
+      name: DEMO_HUNT,
+      startedOn: isoDate(new Date(pastEnd - 125 * DAY)),
+      endedOn: isoDate(new Date(pastEnd)),
+    })
+    .returning({ id: jobHunts.id });
+  const pastCount = await seedHunt(db, userId, past.id, POSTINGS.slice(0, 12), 15, pastEnd);
+
+  console.log(
+    `Added ${count} demo jobs, and ${pastCount} more in a finished hunt. Run with --remove to delete them again.`,
+  );
+  return 0;
+}
+
+/** Adds the postings to a hunt as applications that played out before `now`. */
+async function seedHunt(
+  db: Database,
+  userId: number,
+  huntId: number,
+  postings: Posting[],
+  journeyOffset: number,
+  now: number,
+): Promise<number> {
+  const next = random(42 + journeyOffset);
   const between = (min: number, max: number) => min + Math.floor(next() * (max - min + 1));
-  const now = Date.now();
   let count = 0;
 
-  for (const [index, posting] of POSTINGS.entries()) {
-    const journey = JOURNEYS[index % JOURNEYS.length];
+  for (const [index, posting] of postings.entries()) {
+    const journey = JOURNEYS[(index + journeyOffset) % JOURNEYS.length];
     // Spread the start dates over the last four months, more recent for shorter journeys.
     let at = now - between(7, 120) * DAY - between(0, 23) * 60 * 60 * 1000;
     const createdAt = new Date(at);
@@ -361,6 +395,7 @@ async function seed(db: Database, userId: number): Promise<number> {
       .insert(jobs)
       .values({
         userId,
+        huntId,
         title: posting.title,
         company: posting.company,
         location: posting.location,
@@ -428,9 +463,7 @@ async function seed(db: Database, userId: number): Promise<number> {
       await db.update(jobs).set({ appliedOn, updatedAt: createdAt }).where(eq(jobs.id, job.id));
     count++;
   }
-
-  console.log(`Added ${count} demo jobs. Run with --remove to delete them again.`);
-  return 0;
+  return count;
 }
 
 async function main(args: string[]): Promise<number> {
