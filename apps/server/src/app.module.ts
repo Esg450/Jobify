@@ -6,6 +6,7 @@ import { BackupModule } from './backup/backup.module.js';
 import { ConfigModule } from './config/config.module.js';
 import { loadConfig } from './config/configuration.js';
 import { DatabaseModule } from './database/database.module.js';
+import { HuntsModule } from './hunts/hunts.module.js';
 import { HealthController } from './health.controller.js';
 import { ImportModule } from './importers/import.module.js';
 import { JobsModule } from './jobs/jobs.module.js';
@@ -19,6 +20,7 @@ import { StatsModule } from './stats/stats.module.js';
     DatabaseModule,
     SettingsModule,
     AuthModule,
+    HuntsModule,
     JobsModule,
     ImportModule,
     AiModule,

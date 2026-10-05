@@ -6,7 +6,7 @@ import { APP_CONFIG } from '../config/config.module.js';
 import type { AppConfig } from '../config/configuration.js';
 import { openDatabase, type Database } from './database.js';
 
-export type { Database } from './database.js';
+export type { Database, Executor } from './database.js';
 
 export const DATABASE = Symbol('DATABASE');
 const CONNECTION = Symbol('CONNECTION');

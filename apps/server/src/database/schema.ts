@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 import {
   EMPLOYMENT_TYPES,
   JOB_EVENT_TYPES,
@@ -59,6 +59,32 @@ export const sessions = sqliteTable(
   (table) => [index('sessions_user_idx').on(table.userId)],
 );
 
+/**
+ * One job search, from starting to look until it ends. Every job belongs to a hunt, so a new
+ * search starts with a clean list while earlier ones stay available with their stats.
+ */
+export const jobHunts = sqliteTable(
+  'job_hunts',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    // Calendar dates (YYYY-MM-DD). A hunt without an end date is the user's active one.
+    startedOn: text('started_on').notNull(),
+    endedOn: text('ended_on'),
+    ...timestamps,
+  },
+  (table) => [
+    index('job_hunts_user_idx').on(table.userId),
+    // A user has at most one active hunt.
+    uniqueIndex('job_hunts_active_idx')
+      .on(table.userId)
+      .where(sql`${table.endedOn} is null`),
+  ],
+);
+
 export const jobs = sqliteTable(
   'jobs',
   {
@@ -68,6 +94,11 @@ export const jobs = sqliteTable(
      * assigned to the first admin when the instance is set up.
      */
     userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }),
+    /**
+     * Nullable only for jobs that predate hunts (or were written by an older version after a
+     * downgrade). `HuntsService.adoptOrphanedJobs` moves those into a hunt on startup.
+     */
+    huntId: integer('hunt_id').references(() => jobHunts.id, { onDelete: 'cascade' }),
     title: text('title').notNull(),
     company: text('company').notNull(),
     location: text('location'),
@@ -101,6 +132,7 @@ export const jobs = sqliteTable(
   },
   (table) => [
     index('jobs_user_idx').on(table.userId),
+    index('jobs_hunt_idx').on(table.huntId),
     index('jobs_status_idx').on(table.status),
     index('jobs_company_idx').on(table.company),
   ],
@@ -130,6 +162,7 @@ export const settings = sqliteTable('settings', {
 });
 
 export type User = typeof users.$inferSelect;
+export type JobHunt = typeof jobHunts.$inferSelect;
 export type Job = typeof jobs.$inferSelect;
 export type NewJob = typeof jobs.$inferInsert;
 export type JobEvent = typeof jobEvents.$inferSelect;

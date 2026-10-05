@@ -32,8 +32,37 @@ export type SalaryPeriod = (typeof SALARY_PERIODS)[number];
 export type JobEventType = 'created' | 'status_change' | 'note' | 'interview' | 'follow_up';
 export type ManualEventType = Extract<JobEventType, 'note' | 'interview' | 'follow_up'>;
 
+/** One job search. A hunt without an end date is the active one; a user has at most one. */
+export interface JobHunt {
+  id: number;
+  name: string;
+  startedOn: string;
+  endedOn: string | null;
+  createdAt: string;
+  jobCount: number;
+}
+
+export interface HuntInput {
+  name: string;
+  startedOn?: string;
+  /** A date finishes the hunt; `null` reopens it. Only when updating. */
+  endedOn?: string | null;
+}
+
+/** How a hunt went. Unlike the dashboard's numbers, archived jobs count. */
+export interface HuntSummary {
+  huntId: number;
+  jobs: number;
+  applied: number;
+  responseRate: number | null;
+  interviews: number;
+  offers: number;
+  accepted: JobRef | null;
+}
+
 export interface JobSummary {
   id: number;
+  huntId: number | null;
   title: string;
   company: string;
   location: string | null;
@@ -88,6 +117,8 @@ export type JobSortField =
   'updatedAt' | 'createdAt' | 'appliedOn' | 'company' | 'title' | 'interest' | 'status';
 
 export interface JobQuery {
+  /** Defaults to the current hunt. */
+  huntId?: number;
   q?: string;
   status?: JobStatus[];
   workplaceType?: WorkplaceType[];

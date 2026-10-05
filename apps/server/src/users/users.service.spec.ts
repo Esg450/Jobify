@@ -1,7 +1,8 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { jobs } from '../database/schema.js';
+import { jobHunts, jobs } from '../database/schema.js';
 import { createTestDatabase, type TestDatabase } from '../database/testing.js';
+import { HuntsService } from '../hunts/hunts.service.js';
 import { SettingsService } from '../settings/settings.service.js';
 import { DASHBOARD_CARDS } from './preferences.js';
 import { UsersService } from './users.service.js';
@@ -14,7 +15,7 @@ describe('UsersService', () => {
   beforeEach(async () => {
     database = await createTestDatabase();
     settings = new SettingsService(database.db);
-    users = new UsersService(database.db, settings);
+    users = new UsersService(database.db, settings, new HuntsService(database.db));
   });
 
   afterEach(() => database.client.close());
@@ -42,6 +43,10 @@ describe('UsersService', () => {
     expect(admin.role).toBe('admin');
     const [job] = await database.db.select().from(jobs);
     expect(job.userId).toBe(admin.id);
+    // The claimed jobs become the admin's first job hunt.
+    const [hunt] = await database.db.select().from(jobHunts);
+    expect(hunt).toMatchObject({ userId: admin.id, endedOn: null });
+    expect(job.huntId).toBe(hunt.id);
     await expect(users.getProfile(admin.id)).resolves.toMatchObject({
       name: 'Old Me',
       resume: 'Experience',

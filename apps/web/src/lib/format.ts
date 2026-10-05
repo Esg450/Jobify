@@ -74,6 +74,24 @@ export function formatRelative(date: string, now = Date.now()): string {
   return 'just now';
 }
 
+/** The time between two YYYY-MM-DD dates in words, e.g. "3 days", "6 weeks" or "4 months". */
+export function formatDuration(from: string, to: string): string {
+  const days = Math.max(
+    1,
+    Math.round(
+      (new Date(`${to}T00:00:00Z`).getTime() - new Date(`${from}T00:00:00Z`).getTime()) /
+        86_400_000,
+    ),
+  );
+  const [count, unit] =
+    days < 14
+      ? [days, 'day']
+      : days < 84
+        ? [Math.round(days / 7), 'week']
+        : [Math.round(days / 30), 'month'];
+  return `${count} ${unit}${count === 1 ? '' : 's'}`;
+}
+
 /** Today's date as YYYY-MM-DD in the browser's timezone. */
 export function todayIso(): string {
   const now = new Date();

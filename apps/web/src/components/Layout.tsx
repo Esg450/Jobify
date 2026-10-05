@@ -1,4 +1,5 @@
 import {
+  Binoculars,
   BriefcaseBusiness,
   Columns3,
   GanttChart,
@@ -13,18 +14,22 @@ import {
   Sun,
   X,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useMatches } from 'react-router';
-import { useCurrentUser, useLogout } from '../api/hooks';
+import { useCurrentUser, useLogout, useViewedHunt } from '../api/hooks';
 import { cn } from '../lib/cn';
+import { selectHunt, useSelectedHuntId } from '../lib/huntSelection';
 import { useTheme, type Theme } from '../lib/theme';
+import { HuntBanner } from './HuntBanner';
 import { ButtonLink } from './ui/Button';
+import { Select } from './ui/fields';
 
 const NAVIGATION = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/jobs', label: 'Jobs', icon: List, end: true },
   { to: '/board', label: 'Board', icon: Columns3, end: true },
   { to: '/timeline', label: 'Timeline', icon: GanttChart, end: true },
+  { to: '/hunts', label: 'Job hunts', icon: Binoculars, end: true },
   { to: '/settings', label: 'Settings', icon: Settings, end: false },
 ];
 
@@ -81,6 +86,28 @@ function ThemeSwitcher() {
   );
 }
 
+/** Switches the list, board and charts to another hunt. Hidden until there is a choice. */
+function HuntSwitcher() {
+  const { hunts, hunt, view } = useViewedHunt();
+  if (hunts.length < 2 || !hunt) return null;
+  return (
+    <Select
+      aria-label="Job hunt"
+      title="The job hunt you are looking at"
+      className="-mb-2 font-medium"
+      value={hunt.id}
+      onChange={(event) => view(Number(event.target.value))}
+    >
+      {hunts.map(({ id, name, endedOn }) => (
+        <option key={id} value={id}>
+          {name}
+          {endedOn ? ' (finished)' : ''}
+        </option>
+      ))}
+    </Select>
+  );
+}
+
 function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const user = useCurrentUser();
   const logout = useLogout();
@@ -88,6 +115,7 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <div className="flex h-full flex-col gap-6 px-4 py-5">
       <Logo />
+      <HuntSwitcher />
       <ButtonLink
         to="/jobs/new"
         variant="primary"
@@ -152,9 +180,20 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
 export function Layout() {
   const [menuOpen, setMenuOpen] = useState(false);
   // Pages such as the board opt out of the centred column to use the whole width.
-  const fullWidth = useMatches().some(
-    (match) => (match.handle as { fullWidth?: boolean } | undefined)?.fullWidth,
+  const handles = useMatches().map(
+    (match) => match.handle as { fullWidth?: boolean; hunt?: boolean } | undefined,
   );
+  const fullWidth = handles.some((handle) => handle?.fullWidth);
+  // Pages that show one hunt's jobs say so, which earns them the finished-hunt banner.
+  const showsHunt = handles.some((handle) => handle?.hunt);
+
+  // Forget a selected hunt that no longer exists, e.g. after it was deleted.
+  const { hunts, isPending } = useViewedHunt();
+  const selectedHuntId = useSelectedHuntId();
+  useEffect(() => {
+    if (selectedHuntId !== null && !isPending && !hunts.some((hunt) => hunt.id === selectedHuntId))
+      selectHunt(null);
+  }, [selectedHuntId, isPending, hunts]);
 
   return (
     <div className="min-h-dvh lg:pl-60">
@@ -203,6 +242,7 @@ export function Layout() {
             : 'mx-auto max-w-7xl lg:px-8 lg:py-8',
         )}
       >
+        {showsHunt && <HuntBanner />}
         <Outlet />
       </main>
     </div>

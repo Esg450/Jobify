@@ -1,4 +1,5 @@
 import { useSearchParams } from 'react-router';
+import { useSelectedHuntId } from './huntSelection';
 import {
   JOB_STATUSES,
   WORKPLACE_TYPES,
@@ -22,12 +23,18 @@ function listParam<T extends string>(value: string | null, allowed: readonly T[]
   return (value?.split(',') ?? []).filter((item): item is T => allowed.includes(item as T));
 }
 
-/** Job list filters, stored in the URL so they survive reloads and can be linked to. */
+/**
+ * Job list filters, stored in the URL so they survive reloads and can be linked to. The hunt
+ * is not one of them: it comes from the hunt being viewed.
+ */
 export function useJobFilters() {
   const [params, setParams] = useSearchParams();
 
+  const huntId = useSelectedHuntId() ?? undefined;
+
   const sort = params.get('sort');
   const filters: Required<Pick<JobQuery, 'status' | 'workplaceType'>> & JobQuery = {
+    huntId,
     q: params.get('q') ?? '',
     status: listParam<JobStatus>(params.get('status'), JOB_STATUSES),
     workplaceType: listParam<WorkplaceType>(params.get('workplaceType'), WORKPLACE_TYPES),

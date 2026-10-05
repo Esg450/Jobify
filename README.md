@@ -37,6 +37,11 @@ container with an embedded SQLite database, so there is nothing else to set up.
 - **Dashboard.** Active applications, response rate, offers, your pipeline at a glance and
   applications per week. Drag the cards into the order you like and hide the ones you don't
   need; the layout is saved to your account.
+- **Job hunts.** Each search is its own hunt with its own list, board, charts and dashboard.
+  Finish a hunt when you land a job and start a new one next time: you begin with a clean slate
+  without deleting anything, and can look back at how every earlier hunt went (applications,
+  response rate, interviews, offers and the job you accepted). Upgrading from an older version
+  puts your existing jobs into a first hunt automatically.
 - **Import from job sites.** Paste a link and Jobify fills in the form. Dedicated importers for
   LinkedIn, Workday, Greenhouse, Lever, Ashby, SmartRecruiters, Workable, Rippling and Oracle career
   sites, plus generic importers that read the structured data, embedded job data and page

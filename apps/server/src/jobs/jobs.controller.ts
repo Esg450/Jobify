@@ -30,8 +30,12 @@ export class JobsController {
 
   /** Declared before ':id' so the path is not read as a job id. */
   @Get('timeline')
-  timeline(@CurrentUser() user: PublicUser, @Query('includeArchived') includeArchived?: string) {
-    return this.jobs.timeline(user.id, includeArchived === 'true');
+  timeline(
+    @CurrentUser() user: PublicUser,
+    @Query('includeArchived') includeArchived?: string,
+    @Query('huntId', new ParseIntPipe({ optional: true })) huntId?: number,
+  ) {
+    return this.jobs.timeline(user.id, includeArchived === 'true', huntId);
   }
 
   @Get(':id')

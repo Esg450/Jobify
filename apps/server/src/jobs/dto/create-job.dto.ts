@@ -150,4 +150,9 @@ export class CreateJobDto {
   @IsBoolean()
   @Type(() => Boolean)
   archived?: boolean;
+
+  /** The hunt the job belongs to. New jobs go into the active hunt by default. */
+  @IsOptional()
+  @IsInt()
+  huntId?: number;
 }

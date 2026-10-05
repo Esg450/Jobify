@@ -11,7 +11,14 @@ import {
 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
-import { useAiSettings, useDeleteJob, useJob, useRunAiTask, useUpdateJob } from '../api/hooks';
+import {
+  useAiSettings,
+  useDeleteJob,
+  useHunts,
+  useJob,
+  useRunAiTask,
+  useUpdateJob,
+} from '../api/hooks';
 import { JOB_STATUSES, type Job, type JobStatus } from '../api/types';
 import { AiPanel } from '../components/AiPanel';
 import { InterestRating } from '../components/InterestRating';
@@ -108,7 +115,11 @@ export function JobDetailPage() {
         </div>
 
         <div className="flex flex-col gap-6">
-          <DetailsCard job={job} onInterestChange={(interest) => update({ interest })} />
+          <DetailsCard
+            job={job}
+            onInterestChange={(interest) => update({ interest })}
+            onHuntChange={(huntId) => update({ huntId })}
+          />
           <Timeline jobId={job.id} events={job.events} />
         </div>
       </div>
@@ -315,10 +326,13 @@ function NotesTab({
 function DetailsCard({
   job,
   onInterestChange,
+  onHuntChange,
 }: {
   job: Job;
   onInterestChange: (interest: number | null) => void;
+  onHuntChange: (huntId: number) => void;
 }) {
+  const { data: hunts = [] } = useHunts();
   const salary = formatSalary(job);
   const dates: [string, string | null][] = [
     ['Posted', job.postedOn],
@@ -334,6 +348,23 @@ function DetailsCard({
         <Detail label="Interest">
           <InterestRating value={job.interest} onChange={onInterestChange} />
         </Detail>
+        {/* Moving a job only makes sense once there is more than one hunt. */}
+        {hunts.length > 1 && job.huntId !== null && (
+          <Detail label="Job hunt">
+            <Select
+              aria-label="Job hunt"
+              className="w-auto max-w-48 py-1"
+              value={job.huntId}
+              onChange={(event) => onHuntChange(Number(event.target.value))}
+            >
+              {hunts.map((hunt) => (
+                <option key={hunt.id} value={hunt.id}>
+                  {hunt.name}
+                </option>
+              ))}
+            </Select>
+          </Detail>
+        )}
         {salary && <Detail label="Salary">{salary}</Detail>}
         {job.employmentType && (
           <Detail label="Employment">{EMPLOYMENT_LABELS[job.employmentType]}</Detail>

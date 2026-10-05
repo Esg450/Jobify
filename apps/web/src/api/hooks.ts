@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { selectHunt, useSelectedHuntId } from '../lib/huntSelection';
 import { api } from './client';
 import type {
   AiProviderInfo,
@@ -7,9 +8,12 @@ import type {
   AiTask,
   AuthStatus,
   EventInput,
+  HuntInput,
+  HuntSummary,
   ImportRequest,
   ImportResult,
   Job,
+  JobHunt,
   JobInput,
   JobQuery,
   JobSummary,
@@ -26,7 +30,11 @@ export const queryKeys = {
   jobList: (query: JobQuery) => ['jobs', 'list', query] as const,
   job: (id: number) => ['jobs', id] as const,
   stats: ['stats'] as const,
-  timeline: (includeArchived: boolean) => ['jobs', 'timeline', includeArchived] as const,
+  statsOverview: (huntId: number | null) => ['stats', 'overview', huntId] as const,
+  huntSummaries: ['stats', 'hunts'] as const,
+  hunts: ['hunts'] as const,
+  timeline: (includeArchived: boolean, huntId: number | null) =>
+    ['jobs', 'timeline', includeArchived, huntId] as const,
   aiSettings: ['ai', 'settings'] as const,
   aiProviders: ['ai', 'providers'] as const,
   profile: ['profile'] as const,
@@ -67,6 +75,7 @@ export function useCurrentUser(): User {
 function useResetSession() {
   const queryClient = useQueryClient();
   return () => {
+    selectHunt(null);
     queryClient.removeQueries({ predicate: (query) => query.queryKey[0] !== queryKeys.auth[0] });
     return queryClient.invalidateQueries({ queryKey: queryKeys.auth });
   };
@@ -174,6 +183,75 @@ export function useSetRegistration() {
   });
 }
 
+export function useHunts() {
+  return useQuery({ queryKey: queryKeys.hunts, queryFn: () => api.get<JobHunt[]>('/hunts') });
+}
+
+/**
+ * The hunt whose jobs are on screen: the one picked with `selectHunt`, or else the current hunt
+ * (the active one, or the most recent when none is active). The server lists that one first.
+ * `hunt` is undefined while loading and for someone who has not added a job yet.
+ */
+export function useViewedHunt() {
+  const { data: hunts = [], isPending } = useHunts();
+  const selectedId = useSelectedHuntId();
+  return {
+    hunts,
+    isPending,
+    hunt: hunts.find((hunt) => hunt.id === selectedId) ?? hunts.at(0),
+    active: hunts.find((hunt) => !hunt.endedOn),
+    /** Switches to a hunt. Picking the current one goes back to following it. */
+    view: (id: number) => selectHunt(id === hunts.at(0)?.id ? null : id),
+  };
+}
+
+export function useHuntSummaries() {
+  return useQuery({
+    queryKey: queryKeys.huntSummaries,
+    queryFn: () => api.get<HuntSummary[]>('/stats/hunts'),
+  });
+}
+
+/** Refreshes everything after hunts change: jobs and stats are both scoped by hunt. */
+function useHuntsChanged() {
+  const queryClient = useQueryClient();
+  return () => {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.hunts });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.jobs });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.stats });
+  };
+}
+
+/** Starts a new hunt, which finishes the active one, and switches to it. */
+export function useCreateHunt() {
+  const changed = useHuntsChanged();
+  return useMutation({
+    mutationFn: (input: HuntInput) => api.post<JobHunt>('/hunts', input),
+    onSuccess: () => {
+      selectHunt(null);
+      changed();
+    },
+  });
+}
+
+export function useUpdateHunt() {
+  const changed = useHuntsChanged();
+  return useMutation({
+    mutationFn: ({ id, changes }: { id: number; changes: Partial<HuntInput> }) =>
+      api.patch<JobHunt>(`/hunts/${id}`, changes),
+    onSuccess: changed,
+  });
+}
+
+/** Deletes a hunt and every job in it. */
+export function useDeleteHunt() {
+  const changed = useHuntsChanged();
+  return useMutation({
+    mutationFn: (id: number) => api.delete(`/hunts/${id}`),
+    onSuccess: changed,
+  });
+}
+
 export function useJobs(query: JobQuery) {
   return useQuery({
     queryKey: queryKeys.jobList(query),
@@ -183,9 +261,11 @@ export function useJobs(query: JobQuery) {
 }
 
 export function useTimeline(includeArchived: boolean) {
+  const huntId = useSelectedHuntId();
   return useQuery({
-    queryKey: queryKeys.timeline(includeArchived),
-    queryFn: () => api.get<TimelineJob[]>('/jobs/timeline', { includeArchived }),
+    queryKey: queryKeys.timeline(includeArchived, huntId),
+    queryFn: () =>
+      api.get<TimelineJob[]>('/jobs/timeline', { includeArchived, huntId: huntId ?? undefined }),
   });
 }
 
@@ -203,6 +283,8 @@ function useJobsChanged() {
     if (job) queryClient.setQueryData(queryKeys.job(job.id), job);
     void queryClient.invalidateQueries({ queryKey: queryKeys.jobs });
     void queryClient.invalidateQueries({ queryKey: queryKeys.stats });
+    // Hunts carry a job count, and the first job starts a hunt.
+    void queryClient.invalidateQueries({ queryKey: queryKeys.hunts });
   };
 }
 
@@ -231,6 +313,7 @@ export function useDeleteJob() {
       queryClient.removeQueries({ queryKey: queryKeys.job(id) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.jobs });
       void queryClient.invalidateQueries({ queryKey: queryKeys.stats });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.hunts });
     },
   });
 }
@@ -258,7 +341,11 @@ export function useDeleteEvent(jobId: number) {
 }
 
 export function useStats() {
-  return useQuery({ queryKey: queryKeys.stats, queryFn: () => api.get<Stats>('/stats') });
+  const huntId = useSelectedHuntId();
+  return useQuery({
+    queryKey: queryKeys.statsOverview(huntId),
+    queryFn: () => api.get<Stats>('/stats', { huntId: huntId ?? undefined }),
+  });
 }
 
 export function useImportJob() {

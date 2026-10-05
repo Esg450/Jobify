@@ -8,6 +8,7 @@ import {
 import { and, count, eq, isNull, ne } from 'drizzle-orm';
 import { DATABASE, type Database } from '../database/database.module.js';
 import { jobs, sessions, users, type User, type UserProfile } from '../database/schema.js';
+import { HuntsService } from '../hunts/hunts.service.js';
 import { SettingsService } from '../settings/settings.service.js';
 import { hashPassword, verifyPassword } from './passwords.js';
 import { EMPTY_PROFILE, type ProfileDto } from './profile.dto.js';
@@ -34,6 +35,7 @@ export class UsersService {
   constructor(
     @Inject(DATABASE) private readonly db: Database,
     private readonly settings: SettingsService,
+    private readonly hunts: HuntsService,
   ) {}
 
   async count(): Promise<number> {
@@ -90,6 +92,7 @@ export class UsersService {
         await tx.update(users).set({ profile: legacyProfile }).where(eq(users.id, admin.id));
     });
     if (legacyProfile) await this.settings.delete(LEGACY_PROFILE_KEY);
+    await this.hunts.adoptOrphanedJobs(admin.id);
     return admin;
   }
 
@@ -117,7 +120,7 @@ export class UsersService {
   async remove(id: number): Promise<void> {
     const user = await this.findById(id);
     if (user.role === 'admin') await this.assertNotLastAdmin(id);
-    // Jobs, events and sessions are removed by ON DELETE CASCADE.
+    // Hunts, jobs, events and sessions are removed by ON DELETE CASCADE.
     await this.db.delete(users).where(eq(users.id, id));
   }
 

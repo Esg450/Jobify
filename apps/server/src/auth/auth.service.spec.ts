@@ -2,6 +2,7 @@ import { ConflictException, ForbiddenException, UnauthorizedException } from '@n
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { loadConfig } from '../config/configuration.js';
 import { createTestDatabase, type TestDatabase } from '../database/testing.js';
+import { HuntsService } from '../hunts/hunts.service.js';
 import { SettingsService } from '../settings/settings.service.js';
 import { UsersService } from '../users/users.service.js';
 import { AuthService } from './auth.service.js';
@@ -16,7 +17,7 @@ describe('AuthService', () => {
 
   const createAuth = (env: NodeJS.ProcessEnv = {}) => {
     const settings = new SettingsService(database.db);
-    users = new UsersService(database.db, settings);
+    users = new UsersService(database.db, settings, new HuntsService(database.db));
     return new AuthService(loadConfig(env), users, sessions, settings);
   };
 
