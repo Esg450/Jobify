@@ -6,6 +6,7 @@ import type {
   AiSettings,
   AiSettingsInput,
   AiTask,
+  AiTestInput,
   AuthStatus,
   EventInput,
   HuntInput,
@@ -395,8 +396,11 @@ export function useUpdateAiSettings() {
   });
 }
 
+/** Tries the values in the AI settings form before they are saved. */
 export function useTestAi() {
-  return useMutation({ mutationFn: () => api.post<{ reply: string }>('/ai/test') });
+  return useMutation({
+    mutationFn: (values: AiTestInput) => api.post<{ reply: string }>('/ai/test', values),
+  });
 }
 
 export function useSearchSettings() {

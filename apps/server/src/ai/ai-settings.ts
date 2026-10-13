@@ -93,3 +93,25 @@ export class UpdateAiSettingsDto {
   @MaxLength(500)
   baseUrl?: string;
 }
+
+/** Values from the settings form to try before they are saved. Omitted fields use the saved ones. */
+export class TestAiSettingsDto {
+  @IsOptional()
+  @IsIn(AI_PROVIDER_IDS)
+  provider?: AiProviderId;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  model?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  apiKey?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  baseUrl?: string;
+}

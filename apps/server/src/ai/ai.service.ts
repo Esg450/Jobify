@@ -10,6 +10,7 @@ import {
   type AiProviderId,
   type AiSettings,
   type PublicAiSettings,
+  type TestAiSettingsDto,
   type UpdateAiSettingsDto,
 } from './ai-settings.js';
 import { parseExtractedJob } from './job-extraction.js';
@@ -49,25 +50,44 @@ export class AiService {
     };
   }
 
+  /**
+   * Saves the settings. Choosing a provider (or changing its key, model or URL) only succeeds
+   * if the provider answers, so a typo never leaves everyone with broken AI features.
+   */
   async updateSettings(dto: UpdateAiSettingsDto): Promise<PublicAiSettings> {
+    const next = AiService.merge(await this.getSettings(), dto);
+    if (next.provider) await this.probe(next);
+    await this.settings.set<AiSettings>(SETTINGS_KEY, next);
+    return this.getPublicSettings();
+  }
+
+  /** Checks the provider with the given values, or the saved ones, without saving anything. */
+  async testConnection(dto: TestAiSettingsDto = {}): Promise<{ reply: string }> {
     const current = await this.getSettings();
+    return this.probe(AiService.merge(current, { provider: current.provider, ...dto }));
+  }
+
+  /** The saved settings with the form's values on top. Fields left out keep their saved value. */
+  private static merge(current: AiSettings, dto: UpdateAiSettingsDto): AiSettings {
     // A stored key belongs to one provider, so it is dropped when the provider changes.
     const keptApiKey = dto.provider === current.provider ? current.apiKey : '';
-    await this.settings.set<AiSettings>(SETTINGS_KEY, {
+    return {
       provider: dto.provider,
       model: dto.model?.trim() ?? current.model,
       apiKey: dto.apiKey?.trim() ?? keptApiKey,
       baseUrl: dto.baseUrl?.trim() ?? current.baseUrl,
-    });
-    return this.getPublicSettings();
+    };
   }
 
-  async testConnection(): Promise<{ reply: string }> {
-    const reply = await this.complete({
-      system: 'You are a connectivity check.',
-      prompt: 'Reply with the single word "ready".',
-      maxTokens: 1_000,
-    });
+  private async probe(settings: AiSettings): Promise<{ reply: string }> {
+    const reply = await this.complete(
+      {
+        system: 'You are a connectivity check.',
+        prompt: 'Reply with the single word "ready".',
+        maxTokens: 1_000,
+      },
+      settings,
+    );
     return { reply };
   }
 
@@ -88,8 +108,8 @@ export class AiService {
   }
 
   /** Runs a prompt against the configured provider. Errors become 400 or 502 like every AI call. */
-  async complete(request: CompletionRequest): Promise<string> {
-    const settings = await this.getSettings();
+  async complete(request: CompletionRequest, settings?: AiSettings): Promise<string> {
+    settings ??= await this.getSettings();
     try {
       const output = await createAiProvider(settings).complete(request);
       // Some local reasoning models include their chain of thought inline.

@@ -249,6 +249,14 @@ export interface AiSettingsInput {
   baseUrl?: string;
 }
 
+/** Values from the AI settings form to try before saving. A blank key uses the saved one. */
+export interface AiTestInput {
+  provider?: AiProviderId;
+  model?: string;
+  apiKey?: string;
+  baseUrl?: string;
+}
+
 export type AiTask = 'summary' | 'description' | 'cover-letter' | 'interview-prep';
 
 /** The job boards JobSpy can search (apps/server/src/search/search.constants.ts). */

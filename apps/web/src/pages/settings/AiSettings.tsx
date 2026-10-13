@@ -53,19 +53,13 @@ function AiSettingsCard({
   const providerChanged = provider !== (settings.provider ?? '');
   const keySaved = settings.hasApiKey && !providerChanged;
 
+  // An empty key field keeps the saved key, for both testing and saving.
+  const values = { model, baseUrl, ...(apiKey && { apiKey }) };
+
   const save = (event: FormEvent) => {
     event.preventDefault();
     test.reset();
-    update.mutate(
-      {
-        provider: provider || null,
-        model,
-        baseUrl,
-        // An empty field keeps the saved key.
-        ...(apiKey && { apiKey }),
-      },
-      { onSuccess: () => setApiKey('') },
-    );
+    update.mutate({ provider: provider || null, ...values }, { onSuccess: () => setApiKey('') });
   };
 
   return (
@@ -151,7 +145,14 @@ function AiSettingsCard({
           </>
         )}
 
-        {update.isError && <Alert>{errorText(update.error)}</Alert>}
+        {update.isError && <Alert>Not saved. {errorText(update.error)}</Alert>}
+        {update.isSuccess && !test.isSuccess && (
+          <Alert tone="success">
+            {update.data.configured
+              ? 'Saved. The provider answered, so AI features are ready.'
+              : 'Saved. AI features are off.'}
+          </Alert>
+        )}
         {test.isError && <Alert>{errorText(test.error)}</Alert>}
         {test.isSuccess && (
           <Alert tone="success">
@@ -159,15 +160,27 @@ function AiSettingsCard({
           </Alert>
         )}
 
-        <div className="flex justify-end gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <p className="mr-auto text-xs text-zinc-500 dark:text-zinc-400">
+            {info ? 'Saving checks the connection first.' : 'Choose a provider to turn AI on.'}
+          </p>
           <Button
-            disabled={!settings.configured || update.isPending || providerChanged}
+            disabled={!info || update.isPending}
             loading={test.isPending}
-            onClick={() => test.mutate()}
+            title={info ? undefined : 'Choose a provider first'}
+            onClick={() => {
+              update.reset();
+              test.mutate({ provider: info!.id, ...values });
+            }}
           >
             Test connection
           </Button>
-          <Button type="submit" variant="primary" loading={update.isPending}>
+          <Button
+            type="submit"
+            variant="primary"
+            loading={update.isPending}
+            disabled={test.isPending}
+          >
             Save
           </Button>
         </div>

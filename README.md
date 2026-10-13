@@ -150,7 +150,8 @@ All settings are optional environment variables.
 | `JOBSPY_API_KEY` | _unset_         | The key set on that container.                                                                      |
 
 AI and job search settings can also be managed from the **Settings** page; settings saved there
-take precedence over the environment variables.
+take precedence over the environment variables. Both pages let you test a connection before
+saving, and saving only succeeds once the provider or service answers.
 
 ## AI providers
 
