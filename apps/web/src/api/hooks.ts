@@ -25,6 +25,7 @@ import type {
   SearchResponse,
   SearchSettings,
   SearchSettingsInput,
+  SearchTestInput,
   SearchTestResult,
   Stats,
   TimelineJob,
@@ -412,8 +413,11 @@ export function useUpdateSearchSettings() {
   });
 }
 
+/** Tries the values in the settings form before they are saved. A blank key uses the saved one. */
 export function useTestSearch() {
-  return useMutation({ mutationFn: () => api.post<SearchTestResult>('/search/test') });
+  return useMutation({
+    mutationFn: (values: SearchTestInput) => api.post<SearchTestResult>('/search/test', values),
+  });
 }
 
 /** A job board search. A mutation rather than a query: each search scrapes the boards live. */

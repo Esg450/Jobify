@@ -17,6 +17,7 @@ import {
   type SearchJobType,
   type SearchQuery,
   type SearchResult,
+  type SearchSettings as SearchSettingsValues,
   type SearchSite,
 } from '../api/types';
 import { PageHeader } from '../components/PageHeader';
@@ -99,10 +100,10 @@ export function SearchPage() {
       </>
     );
   }
-  return <SearchView />;
+  return <SearchView settings={settings.data} />;
 }
 
-function SearchView() {
+function SearchView({ settings }: { settings: SearchSettingsValues }) {
   const [stored] = useState(loadStored);
   const [found, setFound] = useState<StoredSearch | null>(stored);
   const search = useSearchJobs();
@@ -152,7 +153,12 @@ function SearchView() {
         description="Search the job boards and pull postings straight into your hunt."
       />
       <div className="flex flex-col gap-4">
-        <SearchForm initial={stored?.query} searching={search.isPending} onSearch={run} />
+        <SearchForm
+          initial={stored?.query}
+          settings={settings}
+          searching={search.isPending}
+          onSearch={run}
+        />
 
         {search.isError && <Alert>{errorText(search.error)}</Alert>}
 
@@ -176,17 +182,21 @@ function SearchView() {
 
 function SearchForm({
   initial,
+  settings,
   searching,
   onSearch,
 }: {
   initial?: SearchQuery;
+  settings: SearchSettingsValues;
   searching: boolean;
   onSearch: (query: SearchQuery) => void;
 }) {
   const [terms, setTerms] = useState(initial?.terms ?? '');
   const [location, setLocation] = useState(initial?.location ?? '');
   const [country, setCountry] = useState(initial?.country ?? '');
-  const [sites, setSites] = useState<SearchSite[]>(initial?.sites ?? DEFAULT_SEARCH_SITES);
+  const [sites, setSites] = useState<SearchSite[]>(
+    initial?.sites ?? (settings.defaultSites.length ? settings.defaultSites : DEFAULT_SEARCH_SITES),
+  );
   const [remote, setRemote] = useState(initial?.remote ?? false);
   const [hoursOld, setHoursOld] = useState<number | ''>(initial?.hoursOld ?? '');
   const [jobType, setJobType] = useState<SearchJobType | ''>(initial?.jobType ?? '');
@@ -238,7 +248,7 @@ function SearchForm({
             {(id) => (
               <Input
                 id={id}
-                placeholder="USA"
+                placeholder={settings.country || 'USA'}
                 className="md:w-28"
                 value={country}
                 onChange={(event) => setCountry(event.target.value)}

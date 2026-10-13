@@ -1,6 +1,16 @@
 import { describeFetchError } from '../common/errors.js';
 import type { SearchJobsDto } from './search-query.dto.js';
-import { DEFAULT_SEARCH_SITES } from './search.constants.js';
+import { DEFAULT_SEARCH_SITES, type SearchSite } from './search.constants.js';
+
+/** Instance-wide defaults applied to every search (see `SearchSettings`). */
+export interface SearchOptions {
+  defaultSites?: SearchSite[];
+  country?: string;
+  distance?: number | null;
+  fetchDescriptions?: boolean;
+  annualSalaries?: boolean;
+  proxies?: string[];
+}
 
 /**
  * One row of JobSpy's result table, as the sidecar returns it. Every column may be null:
@@ -60,10 +70,13 @@ export class JobSpyClient {
     return this.get<JobSpyHealth>('/health', {}, 15_000);
   }
 
-  async search(query: SearchJobsDto): Promise<JobSpyPost[]> {
+  async search(query: SearchJobsDto, options: SearchOptions = {}): Promise<JobSpyPost[]> {
+    const sites = query.sites?.length
+      ? query.sites
+      : (options.defaultSites ?? DEFAULT_SEARCH_SITES);
     const params: Record<string, string> = {
       search_term: query.terms.trim(),
-      site_name: (query.sites?.length ? query.sites : DEFAULT_SEARCH_SITES).join(','),
+      site_name: sites.join(','),
       results_wanted: String(query.limit ?? 20),
       description_format: 'markdown',
     };
@@ -71,7 +84,12 @@ export class JobSpyClient {
     if (query.remote) params.is_remote = 'true';
     if (query.hoursOld) params.hours_old = String(query.hoursOld);
     if (query.jobType) params.job_type = query.jobType;
-    if (query.country?.trim()) params.country_indeed = query.country.trim();
+    const country = query.country?.trim() || options.country?.trim();
+    if (country) params.country_indeed = country;
+    if (options.distance != null) params.distance = String(options.distance);
+    if (options.fetchDescriptions) params.fetch_description = 'true';
+    if (options.annualSalaries) params.enforce_annual_salary = 'true';
+    if (options.proxies?.length) params.proxies = options.proxies.join(',');
 
     const body = await this.get<{ jobs?: JobSpyPost[] }>(
       '/api/v1/search_jobs',

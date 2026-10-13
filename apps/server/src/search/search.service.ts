@@ -16,11 +16,14 @@ import { JobSpyClient, SearchProviderError, type JobSpyHealth } from './jobspy-c
 import { postToDraft } from './jobspy-mapping.js';
 import type { SearchCandidateDto } from './search-check.dto.js';
 import type { SearchJobsDto } from './search-query.dto.js';
-import { DEFAULT_SEARCH_SITES, SEARCH_SITES, type SearchSite } from './search.constants.js';
+import { SEARCH_SITES, type SearchSite } from './search.constants.js';
 import {
+  DEFAULT_SEARCH_SETTINGS,
+  proxyList,
   validateSearchSettings,
   type PublicSearchSettings,
   type SearchSettings,
+  type TestSearchSettingsDto,
   type UpdateSearchSettingsDto,
 } from './search-settings.js';
 
@@ -61,10 +64,12 @@ export class SearchService {
 
   /** Settings saved in the UI take precedence over environment variables. */
   async getSettings(): Promise<SearchSettings> {
-    const saved = await this.settings.get<SearchSettings>(SETTINGS_KEY);
-    if (saved) return saved;
+    const saved = await this.settings.get<Partial<SearchSettings>>(SETTINGS_KEY);
+    // Settings saved by an earlier version may lack the newer options.
+    if (saved) return { ...DEFAULT_SEARCH_SETTINGS, ...saved };
     const { search } = this.config;
     return {
+      ...DEFAULT_SEARCH_SETTINGS,
       enabled: Boolean(search.baseUrl),
       baseUrl: search.baseUrl ?? '',
       apiKey: search.apiKey ?? '',
@@ -72,29 +77,54 @@ export class SearchService {
   }
 
   async getPublicSettings(): Promise<PublicSearchSettings> {
-    const { apiKey, ...settings } = await this.getSettings();
+    const { apiKey, proxies, ...settings } = await this.getSettings();
     return {
       ...settings,
       hasApiKey: Boolean(apiKey),
-      configured: !validateSearchSettings({ ...settings, apiKey }),
+      proxyCount: proxyList(proxies).length,
+      configured: !validateSearchSettings({ ...settings, apiKey, proxies }),
     };
   }
 
+  /**
+   * Saves the settings. Enabling the service (or changing where it is) only succeeds if the
+   * service answers, so a typo never leaves everyone with a broken Find jobs page.
+   */
   async updateSettings(dto: UpdateSearchSettingsDto): Promise<PublicSearchSettings> {
     const current = await this.getSettings();
-    const next: SearchSettings = {
-      enabled: dto.enabled,
-      baseUrl: (dto.baseUrl ?? current.baseUrl).trim().replace(/\/+$/, ''),
-      apiKey: dto.apiKey?.trim() ?? current.apiKey,
-    };
-    const problem = next.enabled ? validateSearchSettings(next) : undefined;
-    if (problem) throw new BadRequestException(problem);
+    const next = SearchService.merge(current, dto);
+    next.enabled = dto.enabled;
+    if (next.enabled) await this.probe(next);
     await this.settings.set<SearchSettings>(SETTINGS_KEY, next);
     return this.getPublicSettings();
   }
 
-  async testConnection(): Promise<SearchTestResult> {
-    const health = await this.call((client) => client.health());
+  /** Checks the service with the given values, or the saved ones, without saving anything. */
+  async testConnection(dto: TestSearchSettingsDto = {}): Promise<SearchTestResult> {
+    const current = await this.getSettings();
+    return this.probe({ ...SearchService.merge(current, dto), enabled: true });
+  }
+
+  /** The saved settings with the form's values on top. Fields left out keep their saved value. */
+  private static merge(
+    current: SearchSettings,
+    dto: Omit<UpdateSearchSettingsDto, 'enabled'>,
+  ): SearchSettings {
+    return {
+      enabled: current.enabled,
+      baseUrl: (dto.baseUrl ?? current.baseUrl).trim().replace(/\/+$/, ''),
+      apiKey: dto.apiKey === undefined ? current.apiKey : dto.apiKey.trim(),
+      defaultSites: dto.defaultSites?.length ? dto.defaultSites : current.defaultSites,
+      country: (dto.country ?? current.country).trim(),
+      distance: dto.distance === undefined ? current.distance : dto.distance,
+      fetchDescriptions: dto.fetchDescriptions ?? current.fetchDescriptions,
+      annualSalaries: dto.annualSalaries ?? current.annualSalaries,
+      proxies: dto.proxies === undefined ? current.proxies : dto.proxies.trim(),
+    };
+  }
+
+  private async probe(settings: SearchSettings): Promise<SearchTestResult> {
+    const health = await this.call((client) => client.health(), settings);
     return SearchService.summarizeHealth(health);
   }
 
@@ -112,7 +142,9 @@ export class SearchService {
 
   /** Searches the boards and marks the postings the user already has. */
   async search(userId: number, query: SearchJobsDto): Promise<SearchResponse> {
-    const posts = await this.call((client) => client.search(query));
+    const posts = await this.call((client, settings) =>
+      client.search(query, { ...settings, proxies: proxyList(settings.proxies) }),
+    );
     this.logger.log(`Found ${posts.length} postings for "${query.terms}"`);
 
     const results: SearchResult[] = [];
@@ -127,7 +159,7 @@ export class SearchService {
     }
     await this.attachExisting(userId, results);
 
-    const requested = query.sites?.length ? query.sites : DEFAULT_SEARCH_SITES;
+    const requested = query.sites?.length ? query.sites : (await this.getSettings()).defaultSites;
     const answered = new Set(results.map((result) => result.site));
     const warnings = requested
       .filter((site) => !answered.has(site))
@@ -166,12 +198,15 @@ export class SearchService {
     }
   }
 
-  private async call<T>(action: (client: JobSpyClient) => Promise<T>): Promise<T> {
-    const settings = await this.getSettings();
+  private async call<T>(
+    action: (client: JobSpyClient, settings: SearchSettings) => Promise<T>,
+    settings?: SearchSettings,
+  ): Promise<T> {
+    settings ??= await this.getSettings();
     const problem = validateSearchSettings(settings);
     if (problem) throw new BadRequestException(problem);
     try {
-      return await action(new JobSpyClient(settings.baseUrl, settings.apiKey));
+      return await action(new JobSpyClient(settings.baseUrl, settings.apiKey), settings);
     } catch (error) {
       if (error instanceof SearchProviderError) {
         this.logger.warn(error.message);

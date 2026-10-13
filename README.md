@@ -200,7 +200,12 @@ image and lets you update or restart it on its own.
 
 2. **Connect it.** In Jobify open **Settings → Job search**, enable it, enter the container's URL as
    seen from the Jobify server (for example `http://192.168.1.10:8000`) and the key, then
-   **Test connection**. A **Find jobs** page appears in the sidebar for everyone.
+   **Test connection**. Saving checks the connection too, so a wrong address is never saved. A
+   **Find jobs** page appears in the sidebar for everyone. Once connected, **Search defaults** on
+   the same page sets how searches run: the boards selected by default, the country for Indeed
+   and Glassdoor (they search one country at a time), the search radius, whether LinkedIn
+   descriptions are fetched during the search or only on import, yearly salary figures, and
+   proxies to spread searches across addresses.
 
 3. **Search.** Enter keywords, a location, which boards to search and how recent the postings should
    be. Postings you already track are marked; **Import** on any other one runs it through Jobify's
@@ -208,8 +213,8 @@ image and lets you update or restart it on its own.
 
 Searches scrape the boards live, so they take a while (up to a minute across several boards) and
 the boards rate-limit addresses that search too often. If LinkedIn or Glassdoor start returning
-errors, wait a bit, search fewer boards at a time, or give the container proxies with
-`DEFAULT_PROXIES`. The service also works with the community
+nothing, wait a bit, search fewer boards at a time, or add proxies under **Search defaults** (or
+on the container with `DEFAULT_PROXIES`). The service also works with the community
 [jobspy-api](https://github.com/rainmanjam/jobspy-api) container, which uses the same endpoints.
 
 ## Users and accounts

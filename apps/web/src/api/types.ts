@@ -283,12 +283,36 @@ export interface SearchSettings {
   hasApiKey: boolean;
   /** Whether the Find jobs page is available. */
   configured: boolean;
+  /** Boards selected by default on the Find jobs page. */
+  defaultSites: SearchSite[];
+  /** Country for Indeed and Glassdoor when a search does not name one. */
+  country: string;
+  /** Search radius in miles; null leaves it to JobSpy (50). */
+  distance: number | null;
+  /** Fetch each LinkedIn posting for its description (slower). */
+  fetchDescriptions: boolean;
+  /** Convert hourly, weekly and monthly pay to yearly figures. */
+  annualSalaries: boolean;
+  /** How many proxies are saved; the proxies themselves are never returned. */
+  proxyCount: number;
 }
 
 export interface SearchSettingsInput {
   enabled: boolean;
   baseUrl?: string;
   /** Omit to keep the saved key; an empty string removes it. */
+  apiKey?: string;
+  defaultSites?: SearchSite[];
+  country?: string;
+  distance?: number | null;
+  fetchDescriptions?: boolean;
+  annualSalaries?: boolean;
+  /** Omit to keep the saved proxies; an empty string removes them. */
+  proxies?: string;
+}
+
+export interface SearchTestInput {
+  baseUrl?: string;
   apiKey?: string;
 }
 

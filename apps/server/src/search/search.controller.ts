@@ -3,7 +3,7 @@ import { AdminOnly, CurrentUser } from '../auth/decorators.js';
 import type { PublicUser } from '../users/users.service.js';
 import { CheckSearchResultsDto } from './search-check.dto.js';
 import { SearchJobsDto } from './search-query.dto.js';
-import { UpdateSearchSettingsDto } from './search-settings.js';
+import { TestSearchSettingsDto, UpdateSearchSettingsDto } from './search-settings.js';
 import { SearchService } from './search.service.js';
 
 @Controller('search')
@@ -22,11 +22,12 @@ export class SearchController {
     return this.search.updateSettings(dto);
   }
 
+  /** Tries the values in the form before they are saved. */
   @Post('test')
   @AdminOnly()
   @HttpCode(HttpStatus.OK)
-  test() {
-    return this.search.testConnection();
+  test(@Body() dto: TestSearchSettingsDto) {
+    return this.search.testConnection(dto);
   }
 
   /** Searches the boards. Nothing is saved; results are drafts for the Add job page. */
