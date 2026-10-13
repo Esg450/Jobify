@@ -2,6 +2,8 @@ export class ApiError extends Error {
   constructor(
     readonly status: number,
     message: string,
+    /** The parsed JSON body, for errors that carry more than a message (such as 409s). */
+    readonly body: unknown = undefined,
   ) {
     super(message);
   }
@@ -26,15 +28,18 @@ function buildUrl(path: string, query?: Query): string {
   return `/api${path}${search ? `?${search}` : ''}`;
 }
 
-async function errorMessage(response: Response): Promise<string> {
+async function toApiError(response: Response): Promise<ApiError> {
+  const fallback = response.statusText || `Request failed with status ${response.status}`;
+  let body: unknown;
   try {
-    const body = (await response.json()) as { message?: string | string[] };
-    if (Array.isArray(body.message)) return body.message.join('. ');
-    if (body.message) return body.message;
+    body = await response.json();
   } catch {
-    // Not JSON; fall through to the status text.
+    // Not JSON; use the status text.
+    return new ApiError(response.status, fallback);
   }
-  return response.statusText || `Request failed with status ${response.status}`;
+  const { message } = (body ?? {}) as { message?: string | string[] };
+  const text = Array.isArray(message) ? message.join('. ') : message || fallback;
+  return new ApiError(response.status, text, body);
 }
 
 export async function request<T>(
@@ -50,7 +55,7 @@ export async function request<T>(
   });
 
   if (response.status === 401 && !path.startsWith('/auth')) onUnauthorized();
-  if (!response.ok) throw new ApiError(response.status, await errorMessage(response));
+  if (!response.ok) throw await toApiError(response);
   if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
 }
