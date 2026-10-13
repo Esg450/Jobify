@@ -25,6 +25,7 @@ import type {
   SearchResponse,
   SearchSettings,
   SearchSettingsInput,
+  SearchSuggestion,
   SearchTestInput,
   SearchTestResult,
   Stats,
@@ -424,6 +425,13 @@ export function useTestSearch() {
 export function useSearchJobs() {
   return useMutation({
     mutationFn: (query: SearchQuery) => api.post<SearchResponse>('/search', query),
+  });
+}
+
+/** Searches the AI proposes from the user's profile, best fit first. */
+export function useSuggestSearches() {
+  return useMutation({
+    mutationFn: () => api.post<{ suggestions: SearchSuggestion[] }>('/search/suggest'),
   });
 }
 

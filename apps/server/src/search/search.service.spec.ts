@@ -5,6 +5,8 @@ import { createTestDatabase, type TestDatabase } from '../database/testing.js';
 import { HuntsService } from '../hunts/hunts.service.js';
 import { JobsService } from '../jobs/jobs.service.js';
 import { SettingsService } from '../settings/settings.service.js';
+import { UsersService } from '../users/users.service.js';
+import type { AiService } from '../ai/ai.service.js';
 import type { JobSpyPost } from './jobspy-client.js';
 import { SearchService } from './search.service.js';
 
@@ -48,12 +50,18 @@ describe('SearchService', () => {
   let database: TestDatabase;
   let service: SearchService;
   let jobs: JobsService;
+  let users: UsersService;
   let alice: number;
+  const complete = vi.fn<AiService['complete']>();
+  const ai = { complete } as unknown as AiService;
 
   beforeEach(async () => {
     database = await createTestDatabase();
-    jobs = new JobsService(database.db, new HuntsService(database.db));
-    service = new SearchService(config, new SettingsService(database.db), jobs);
+    const hunts = new HuntsService(database.db);
+    const settings = new SettingsService(database.db);
+    jobs = new JobsService(database.db, hunts);
+    users = new UsersService(database.db, settings, hunts);
+    service = new SearchService(config, settings, jobs, users, ai);
     alice = await database.createUser('alice', 'admin');
     fetchMock.mockReset();
     vi.stubGlobal('fetch', fetchMock);
@@ -85,6 +93,8 @@ describe('SearchService', () => {
       { search: { baseUrl: 'http://jobspy:8000', apiKey: 'k' } } as AppConfig,
       new SettingsService(database.db),
       jobs,
+      users,
+      ai,
     );
     expect(await fromEnv.getPublicSettings()).toMatchObject({
       enabled: true,
@@ -160,6 +170,38 @@ describe('SearchService', () => {
     expect(await service.getPublicSettings()).toMatchObject({ baseUrl: 'http://jobspy:8000' });
 
     await expect(service.testConnection({ baseUrl: '' })).rejects.toThrow(BadRequestException);
+  });
+
+  describe('suggestions from the profile', () => {
+    beforeEach(() => complete.mockReset());
+
+    it('needs something in the profile to go on', async () => {
+      await expect(service.suggest(alice)).rejects.toThrow(BadRequestException);
+      expect(complete).not.toHaveBeenCalled();
+    });
+
+    it('asks the AI with the profile and returns the parsed searches', async () => {
+      await users.updateProfile(alice, {
+        headline: 'Platform engineer',
+        preferences: 'Remote, or hybrid in Austin',
+      });
+      complete.mockResolvedValue(
+        '{"searches": [{"terms": "platform engineer", "location": "Austin, TX", "remote": true}, {"terms": "sre"}]}',
+      );
+      expect(await service.suggest(alice)).toEqual([
+        { terms: 'platform engineer', location: 'Austin, TX', remote: true },
+        { terms: 'sre', location: undefined, remote: false },
+      ]);
+      const request = complete.mock.calls[0][0];
+      expect(request.prompt).toContain('Headline: Platform engineer');
+      expect(request.prompt).toContain('Remote, or hybrid in Austin');
+    });
+
+    it('turns an unusable answer into a 502', async () => {
+      await users.updateProfile(alice, { headline: 'Designer' });
+      complete.mockResolvedValue('Sorry, I cannot help with that.');
+      await expect(service.suggest(alice)).rejects.toThrow(BadGatewayException);
+    });
   });
 
   describe('with a configured service', () => {

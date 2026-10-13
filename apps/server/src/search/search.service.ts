@@ -7,15 +7,19 @@ import {
   Injectable,
   Logger,
 } from '@nestjs/common';
+import { AiService } from '../ai/ai.service.js';
+import { buildSearchSuggestionPrompt } from '../ai/prompts.js';
 import { APP_CONFIG } from '../config/config.module.js';
 import type { AppConfig } from '../config/configuration.js';
 import type { JobDraft } from '../importers/job-draft.js';
 import { JobsService, type DuplicateJob } from '../jobs/jobs.service.js';
 import { SettingsService } from '../settings/settings.service.js';
+import { UsersService } from '../users/users.service.js';
 import { JobSpyClient, SearchProviderError, type JobSpyHealth } from './jobspy-client.js';
 import { postToDraft } from './jobspy-mapping.js';
 import type { SearchCandidateDto } from './search-check.dto.js';
 import type { SearchJobsDto } from './search-query.dto.js';
+import { parseSearchSuggestions, type SearchSuggestion } from './search-suggestions.js';
 import { SEARCH_SITES, type SearchSite } from './search.constants.js';
 import {
   DEFAULT_SEARCH_SETTINGS,
@@ -60,6 +64,8 @@ export class SearchService {
     @Inject(APP_CONFIG) private readonly config: AppConfig,
     private readonly settings: SettingsService,
     private readonly jobs: JobsService,
+    private readonly users: UsersService,
+    private readonly ai: AiService,
   ) {}
 
   /** Settings saved in the UI take precedence over environment variables. */
@@ -181,6 +187,23 @@ export class SearchService {
     const results = candidates.map(({ id, ...draft }) => ({ id, draft, existing: null }));
     await this.attachExisting(userId, results);
     return Object.fromEntries(results.map(({ id, existing }) => [id, existing]));
+  }
+
+  /** Searches the AI proposes from the user's profile, best fit first. Nothing is run. */
+  async suggest(userId: number): Promise<SearchSuggestion[]> {
+    const profile = await this.users.getProfile(userId);
+    if (!profile.headline.trim() && !profile.resume.trim() && !profile.preferences.trim()) {
+      throw new BadRequestException(
+        'Add a headline, your resume or what you are looking for to your profile first (Settings, Account).',
+      );
+    }
+    const answer = await this.ai.complete(buildSearchSuggestionPrompt(profile));
+    try {
+      return parseSearchSuggestions(answer);
+    } catch (error) {
+      this.logger.warn(`Search suggestions unusable: ${(error as Error).message}`);
+      throw new BadGatewayException((error as Error).message);
+    }
   }
 
   private async attachExisting(

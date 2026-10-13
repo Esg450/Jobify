@@ -348,6 +348,13 @@ export interface SearchResponse {
   warnings: string[];
 }
 
+/** A job board search the AI proposed from the user's profile. */
+export interface SearchSuggestion {
+  terms: string;
+  location?: string;
+  remote: boolean;
+}
+
 export interface SearchCandidate {
   id: string;
   title: string;

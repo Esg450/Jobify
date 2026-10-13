@@ -1,12 +1,14 @@
-import { Check, ExternalLink, Plus, Search, Settings } from 'lucide-react';
+import { Check, ExternalLink, Plus, Search, Settings, Sparkles } from 'lucide-react';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
 import {
+  useAiSettings,
   useCheckSearchResults,
   useCurrentUser,
   useImportJob,
   useSearchJobs,
   useSearchSettings,
+  useSuggestSearches,
 } from '../api/hooks';
 import {
   DEFAULT_SEARCH_SITES,
@@ -19,6 +21,7 @@ import {
   type SearchResult,
   type SearchSettings as SearchSettingsValues,
   type SearchSite,
+  type SearchSuggestion,
 } from '../api/types';
 import { PageHeader } from '../components/PageHeader';
 import { StatusBadge } from '../components/StatusBadge';
@@ -224,9 +227,19 @@ function SearchForm({
   const [hoursOld, setHoursOld] = useState<number | ''>(initial?.hoursOld ?? '');
   const [jobType, setJobType] = useState<SearchJobType | ''>(initial?.jobType ?? '');
   const [limit, setLimit] = useState(initial?.limit ?? 20);
+  const { data: ai } = useAiSettings();
+  const suggest = useSuggestSearches();
+  const suggestions = suggest.data?.suggestions ?? [];
 
   const toggleSite = (site: SearchSite, on: boolean) =>
     setSites((current) => (on ? [...current, site] : current.filter((s) => s !== site)));
+
+  /** Puts a suggestion in the form. Nothing runs until the user presses Search. */
+  const apply = (suggestion: SearchSuggestion) => {
+    setTerms(suggestion.terms);
+    if (suggestion.location) setLocation(suggestion.location);
+    setRemote(suggestion.remote);
+  };
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -347,12 +360,61 @@ function SearchForm({
           </Field>
         </div>
 
+        {suggest.isError && <Alert>{errorText(suggest.error)}</Alert>}
+        {suggestions.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <span className="text-zinc-500 dark:text-zinc-400">Try:</span>
+            {suggestions.map((suggestion) => {
+              const active = suggestion.terms === terms;
+              return (
+                <button
+                  key={suggestion.terms}
+                  type="button"
+                  onClick={() => apply(suggestion)}
+                  title={[
+                    suggestion.location && `in ${suggestion.location}`,
+                    suggestion.remote && 'remote',
+                  ]
+                    .filter(Boolean)
+                    .join(', ')}
+                  className={cn(
+                    'rounded-full px-3 py-1 ring-1 transition-colors ring-inset',
+                    active
+                      ? 'bg-indigo-50 text-indigo-700 ring-indigo-200 dark:bg-indigo-950 dark:text-indigo-300 dark:ring-indigo-900'
+                      : 'bg-white text-zinc-700 ring-zinc-300 hover:bg-zinc-50 dark:bg-zinc-900 dark:text-zinc-300 dark:ring-zinc-700 dark:hover:bg-zinc-800',
+                  )}
+                >
+                  {suggestion.terms}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <Checkbox
-            label="Remote only"
-            checked={remote}
-            onChange={(event) => setRemote(event.target.checked)}
-          />
+          <div className="flex flex-wrap items-center gap-4">
+            <Checkbox
+              label="Remote only"
+              checked={remote}
+              onChange={(event) => setRemote(event.target.checked)}
+            />
+            {ai?.configured && (
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={<Sparkles className="size-3.5" />}
+                loading={suggest.isPending}
+                title="Fill in the search from your profile (Settings, Account). You can change it before searching."
+                onClick={() =>
+                  suggest.mutate(undefined, {
+                    onSuccess: ({ suggestions: [best] }) => best && apply(best),
+                  })
+                }
+              >
+                Suggest from my profile
+              </Button>
+            )}
+          </div>
           <Button
             type="submit"
             variant="primary"

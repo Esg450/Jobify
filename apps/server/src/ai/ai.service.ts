@@ -87,7 +87,8 @@ export class AiService {
     return parseExtractedJob(await this.complete(buildExtractionPrompt(pageText)));
   }
 
-  private async complete(request: CompletionRequest): Promise<string> {
+  /** Runs a prompt against the configured provider. Errors become 400 or 502 like every AI call. */
+  async complete(request: CompletionRequest): Promise<string> {
     const settings = await this.getSettings();
     try {
       const output = await createAiProvider(settings).complete(request);

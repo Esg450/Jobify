@@ -215,7 +215,9 @@ image and lets you update or restart it on its own.
    proxies to spread searches across addresses.
 
 3. **Search.** Enter keywords, a location, which boards to search and how recent the postings should
-   be. Postings you already track are marked; **Import** on any other one runs it through Jobify's
+   be. With an AI provider set up and something in your profile, **Suggest from my profile** fills
+   in the keywords, location and remote preference for you (and offers a few alternative titles to
+   try); nothing runs until you press Search, so you can adjust it first. Postings you already track are marked; **Import** on any other one runs it through Jobify's
    importers for the full description and opens the Add job page for you to review and save.
 
 Searches scrape the boards live, so they take a while (up to a minute across several boards) and

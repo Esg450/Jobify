@@ -37,6 +37,13 @@ export class SearchController {
     return this.search.search(user.id, dto);
   }
 
+  /** Searches the AI proposes from the user's profile. Fills the form; the user runs it. */
+  @Post('suggest')
+  @HttpCode(HttpStatus.OK)
+  async suggest(@CurrentUser() user: PublicUser) {
+    return { suggestions: await this.search.suggest(user.id) };
+  }
+
   /** Which of some earlier results the user has saved since. */
   @Post('check')
   @HttpCode(HttpStatus.OK)
