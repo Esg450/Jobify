@@ -1,4 +1,4 @@
-import { Database, ServerCog, Sparkles, UserRound, Users } from 'lucide-react';
+import { Database, Search, ServerCog, Sparkles, UserRound, Users } from 'lucide-react';
 import { NavLink, Outlet } from 'react-router';
 import { useCurrentUser, useHealth } from '../../api/hooks';
 import { PageHeader } from '../../components/PageHeader';
@@ -7,6 +7,7 @@ import { cn } from '../../lib/cn';
 const SECTIONS = [
   { to: 'account', label: 'Account', icon: UserRound, adminOnly: false },
   { to: 'ai', label: 'AI provider', icon: Sparkles, adminOnly: false },
+  { to: 'search', label: 'Job search', icon: Search, adminOnly: false },
   { to: 'users', label: 'Users', icon: Users, adminOnly: true },
   { to: 'data', label: 'Your data', icon: Database, adminOnly: false },
   { to: 'system', label: 'System', icon: ServerCog, adminOnly: true },

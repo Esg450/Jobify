@@ -18,9 +18,11 @@ import { JobsPage } from './pages/JobsPage';
 import { NewJobPage } from './pages/NewJobPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { RouteError } from './pages/RouteError';
+import { SearchPage } from './pages/SearchPage';
 import { AccountSettings } from './pages/settings/AccountSettings';
 import { AiSettings } from './pages/settings/AiSettings';
 import { DataSettings } from './pages/settings/DataSettings';
+import { SearchSettings } from './pages/settings/SearchSettings';
 import { SettingsLayout } from './pages/settings/SettingsLayout';
 import { TimelinePage } from './pages/TimelinePage';
 import { SystemSettings } from './pages/settings/SystemSettings';
@@ -39,6 +41,7 @@ const router = createBrowserRouter([
           { index: true, element: <DashboardPage />, handle: { hunt: true } },
           { path: 'jobs', element: <JobsPage />, handle: { hunt: true } },
           { path: 'jobs/new', element: <NewJobPage />, handle: { hunt: true } },
+          { path: 'search', element: <SearchPage />, handle: { hunt: true } },
           { path: 'jobs/:id', element: <JobDetailPage /> },
           { path: 'jobs/:id/edit', element: <EditJobPage /> },
           { path: 'board', element: <BoardPage />, handle: { fullWidth: true, hunt: true } },
@@ -51,6 +54,7 @@ const router = createBrowserRouter([
               { index: true, element: <Navigate to="account" replace /> },
               { path: 'account', element: <AccountSettings /> },
               { path: 'ai', element: <AiSettings /> },
+              { path: 'search', element: <SearchSettings /> },
               { path: 'users', element: <UsersSettings /> },
               { path: 'data', element: <DataSettings /> },
               { path: 'system', element: <SystemSettings /> },

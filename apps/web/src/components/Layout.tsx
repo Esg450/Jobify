@@ -10,13 +10,14 @@ import {
   Monitor,
   Moon,
   Plus,
+  Search,
   Settings,
   Sun,
   X,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useMatches } from 'react-router';
-import { useCurrentUser, useLogout, useViewedHunt } from '../api/hooks';
+import { useCurrentUser, useLogout, useSearchSettings, useViewedHunt } from '../api/hooks';
 import { cn } from '../lib/cn';
 import { selectHunt, useSelectedHuntId } from '../lib/huntSelection';
 import { useTheme, type Theme } from '../lib/theme';
@@ -27,6 +28,8 @@ import { Select } from './ui/fields';
 const NAVIGATION = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/jobs', label: 'Jobs', icon: List, end: true },
+  // Only shown once an admin has connected a JobSpy service; see `Sidebar`.
+  { to: '/search', label: 'Find jobs', icon: Search, end: true },
   { to: '/board', label: 'Board', icon: Columns3, end: true },
   { to: '/timeline', label: 'Timeline', icon: GanttChart, end: true },
   { to: '/hunts', label: 'Job hunts', icon: Binoculars, end: true },
@@ -111,6 +114,8 @@ function HuntSwitcher() {
 function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const user = useCurrentUser();
   const logout = useLogout();
+  const { data: search } = useSearchSettings();
+  const navigation = NAVIGATION.filter((item) => item.to !== '/search' || search?.configured);
 
   return (
     <div className="flex h-full flex-col gap-6 px-4 py-5">
@@ -125,7 +130,7 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         Add job
       </ButtonLink>
       <nav className="flex flex-col gap-1">
-        {NAVIGATION.map(({ to, label, icon: Icon, end }) => (
+        {navigation.map(({ to, label, icon: Icon, end }) => (
           <NavLink
             key={to}
             to={to}

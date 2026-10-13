@@ -19,6 +19,13 @@ import type {
   JobSummary,
   Preferences,
   Profile,
+  DuplicateJob,
+  SearchCandidate,
+  SearchQuery,
+  SearchResponse,
+  SearchSettings,
+  SearchSettingsInput,
+  SearchTestResult,
   Stats,
   TimelineJob,
   User,
@@ -37,6 +44,7 @@ export const queryKeys = {
     ['jobs', 'timeline', includeArchived, huntId] as const,
   aiSettings: ['ai', 'settings'] as const,
   aiProviders: ['ai', 'providers'] as const,
+  searchSettings: ['search', 'settings'] as const,
   profile: ['profile'] as const,
   preferences: ['preferences'] as const,
   importSites: ['import', 'sites'] as const,
@@ -387,6 +395,40 @@ export function useUpdateAiSettings() {
 
 export function useTestAi() {
   return useMutation({ mutationFn: () => api.post<{ reply: string }>('/ai/test') });
+}
+
+export function useSearchSettings() {
+  return useQuery({
+    queryKey: queryKeys.searchSettings,
+    queryFn: () => api.get<SearchSettings>('/search/settings'),
+  });
+}
+
+export function useUpdateSearchSettings() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: SearchSettingsInput) => api.put<SearchSettings>('/search/settings', input),
+    onSuccess: (settings) => queryClient.setQueryData(queryKeys.searchSettings, settings),
+  });
+}
+
+export function useTestSearch() {
+  return useMutation({ mutationFn: () => api.post<SearchTestResult>('/search/test') });
+}
+
+/** A job board search. A mutation rather than a query: each search scrapes the boards live. */
+export function useSearchJobs() {
+  return useMutation({
+    mutationFn: (query: SearchQuery) => api.post<SearchResponse>('/search', query),
+  });
+}
+
+/** Which of some earlier search results the user has saved since, keyed by result id. */
+export function useCheckSearchResults() {
+  return useMutation({
+    mutationFn: (candidates: SearchCandidate[]) =>
+      api.post<Record<string, DuplicateJob | null>>('/search/check', { candidates }),
+  });
 }
 
 export function useRunAiTask(jobId: number) {
