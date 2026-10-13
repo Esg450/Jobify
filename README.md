@@ -113,11 +113,12 @@ docker build -t jobify .
 
 Images are published to the GitHub Container Registry for `amd64` and `arm64`:
 
-| Tag            | What it is                                               |
-| -------------- | -------------------------------------------------------- |
-| `latest`       | The newest release. Recommended.                         |
-| `1.2.3`, `1.2` | A specific release, if you want to pin a version.        |
-| `edge`         | The current `main` branch, for trying unreleased changes |
+| Tag            | What it is                                                    |
+| -------------- | ------------------------------------------------------------- |
+| `latest`       | The newest release. Recommended.                              |
+| `1.2.3`, `1.2` | A specific release, if you want to pin a version.             |
+| `beta`         | The newest pre-release, for trying features before they ship. |
+| `edge`         | The current `main` branch, for trying unreleased changes      |
 
 On Unraid, new releases appear as **update ready** in the Docker tab; click it to update. With
 Compose, run `docker compose pull && docker compose up -d`. Your data is kept across updates and

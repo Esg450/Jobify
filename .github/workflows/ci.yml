@@ -3,7 +3,8 @@ name: CI
 # Every push to main, pull request and release runs the checks. The Docker image is only
 # built once they pass: on pull requests as a build-only check, on main as :edge, and on a
 # published release (tagged like v1.2.3) as :1.2.3, :1.2 and :latest, which is what Unraid
-# and other installs track. Pre-releases get their version tags but not :latest.
+# and other installs track. Pre-releases (tagged like v1.3.0-beta.1) get their version tag and
+# :beta instead of :latest, so only people who opt in see them.
 on:
   push:
     branches: [main]
@@ -80,6 +81,7 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest,enable=${{ github.event_name == 'release' && !github.event.release.prerelease }}
+            type=raw,value=beta,enable=${{ github.event_name == 'release' && github.event.release.prerelease }}
             type=edge,branch=main
             type=ref,event=pr
       - uses: docker/build-push-action@v6
@@ -146,6 +148,7 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest,enable=${{ github.event_name == 'release' && !github.event.release.prerelease }}
+            type=raw,value=beta,enable=${{ github.event_name == 'release' && github.event.release.prerelease }}
             type=edge,branch=main
             type=ref,event=pr
       - uses: docker/build-push-action@v6
