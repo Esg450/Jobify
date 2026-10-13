@@ -47,6 +47,10 @@ container with an embedded SQLite database, so there is nothing else to set up.
   sites, plus generic importers that read the structured data, embedded job data and page
   content that most other career pages have. Pages pasted from Indeed, Glassdoor and other
   sites that block automated access are recognised too, and plain text works as well.
+- **Find jobs without leaving the app.** Connect the optional Jobify JobSpy container and search
+  Indeed, LinkedIn, Glassdoor, ZipRecruiter, Google Jobs and other boards from a **Find jobs**
+  page. Results that are already in your jobs are marked, and any other posting imports into your
+  hunt with one click.
 - **Optional AI assistant.** Connect Anthropic (Claude), OpenAI, Google Gemini, a local Ollama
   model or any OpenAI-compatible API to summarize postings, tidy up descriptions, draft cover
   letters, prepare for interviews and extract job details from any page.
@@ -123,19 +127,21 @@ database migrations run automatically. The running version is shown on the Setti
 
 All settings are optional environment variables.
 
-| Variable        | Default         | Description                                                                                 |
-| --------------- | --------------- | ------------------------------------------------------------------------------------------- |
-| `PORT`          | `3000`          | Port the web server listens on.                                                             |
-| `DATA_DIR`      | `/data`         | Directory for the SQLite database.                                                          |
-| `PUID` / `PGID` | `1000` / `1000` | User and group the container runs as. The data directory is handed to this user on startup. |
-| `LOG_LEVEL`     | `log`           | How much to log: `error`, `warn`, `log`, or `debug` to also record every request.           |
-| `AI_PROVIDER`   | _unset_         | Default AI provider: `anthropic`, `openai`, `gemini`, `ollama` or `openai_compatible`.      |
-| `AI_MODEL`      | _unset_         | Default model. Anthropic defaults to `claude-opus-5-5`; other providers need a model name.  |
-| `AI_API_KEY`    | _unset_         | API key for the provider.                                                                   |
-| `AI_BASE_URL`   | _unset_         | Custom API endpoint, e.g. `http://192.168.1.10:11434` for Ollama.                           |
+| Variable         | Default         | Description                                                                                         |
+| ---------------- | --------------- | --------------------------------------------------------------------------------------------------- |
+| `PORT`           | `3000`          | Port the web server listens on.                                                                     |
+| `DATA_DIR`       | `/data`         | Directory for the SQLite database.                                                                  |
+| `PUID` / `PGID`  | `1000` / `1000` | User and group the container runs as. The data directory is handed to this user on startup.         |
+| `LOG_LEVEL`      | `log`           | How much to log: `error`, `warn`, `log`, or `debug` to also record every request.                   |
+| `AI_PROVIDER`    | _unset_         | Default AI provider: `anthropic`, `openai`, `gemini`, `ollama` or `openai_compatible`.              |
+| `AI_MODEL`       | _unset_         | Default model. Anthropic defaults to `claude-opus-5-5`; other providers need a model name.          |
+| `AI_API_KEY`     | _unset_         | API key for the provider.                                                                           |
+| `AI_BASE_URL`    | _unset_         | Custom API endpoint, e.g. `http://192.168.1.10:11434` for Ollama.                                   |
+| `JOBSPY_URL`     | _unset_         | URL of a Jobify JobSpy container, which turns on the Find jobs page. See [Job search](#job-search). |
+| `JOBSPY_API_KEY` | _unset_         | The key set on that container.                                                                      |
 
-AI settings can also be managed from the **Settings** page; settings saved there take precedence
-over the environment variables.
+AI and job search settings can also be managed from the **Settings** page; settings saved there
+take precedence over the environment variables.
 
 ## AI providers
 
@@ -169,6 +175,36 @@ salary; with an AI provider configured, Jobify can fill in anything that is stil
 
 Want to support another site? Importers are small, self-contained classes; see
 [CONTRIBUTING.md](CONTRIBUTING.md#adding-a-job-site-importer).
+
+## Job search
+
+Jobify can search the job boards for you through [JobSpy](https://github.com/speedyapply/JobSpy),
+which it runs as a second, optional container (`ghcr.io/esg450/jobify-jobspy`, source in
+[`apps/jobspy`](apps/jobspy)). Keeping it separate keeps the scraping dependencies out of the main
+image and lets you update or restart it on its own.
+
+1. **Start the container.** On Unraid, add it from the
+   [`unraid/jobify-jobspy.xml`](unraid/jobify-jobspy.xml) template the same way as Jobify and set an
+   API key. With Compose, uncomment the `jobspy` service in [`docker-compose.yml`](docker-compose.yml).
+   By hand:
+
+   ```sh
+   docker run -d --name jobify-jobspy -p 8000:8000 -e API_KEYS=change-me ghcr.io/esg450/jobify-jobspy:latest
+   ```
+
+2. **Connect it.** In Jobify open **Settings → Job search**, enable it, enter the container's URL as
+   seen from the Jobify server (for example `http://192.168.1.10:8000`) and the key, then
+   **Test connection**. A **Find jobs** page appears in the sidebar for everyone.
+
+3. **Search.** Enter keywords, a location, which boards to search and how recent the postings should
+   be. Postings you already track are marked; **Import** on any other one runs it through Jobify's
+   importers for the full description and opens the Add job page for you to review and save.
+
+Searches scrape the boards live, so they take a while (up to a minute across several boards) and
+the boards rate-limit addresses that search too often. If LinkedIn or Glassdoor start returning
+errors, wait a bit, search fewer boards at a time, or give the container proxies with
+`DEFAULT_PROXIES`. The service also works with the community
+[jobspy-api](https://github.com/rainmanjam/jobspy-api) container, which uses the same endpoints.
 
 ## Users and accounts
 
