@@ -8,6 +8,25 @@ describe('normalizeJobUrl', () => {
     );
   });
 
+  it('keeps the query parameters that identify the posting', () => {
+    expect(normalizeJobUrl('https://www.indeed.com/viewjob?jk=abc123&from=serp&tk=xyz')).toBe(
+      'https://www.indeed.com/viewjob?jk=abc123',
+    );
+    expect(
+      normalizeJobUrl('https://www.linkedin.com/jobs/search/?refId=r&currentJobId=42&trk=t'),
+    ).toBe('https://www.linkedin.com/jobs/search?currentjobid=42');
+    expect(normalizeJobUrl('https://acme.com/careers?gh_jid=7&utm_source=x')).toBe(
+      'https://acme.com/careers?gh_jid=7',
+    );
+    // Different ids on the same page are different postings; the same id in any order is not.
+    expect(normalizeJobUrl('https://www.indeed.com/viewjob?jk=1')).not.toBe(
+      normalizeJobUrl('https://www.indeed.com/viewjob?jk=2'),
+    );
+    expect(normalizeJobUrl('https://x.test/j?b=2&jobId=9&a=1')).toBe(
+      normalizeJobUrl('https://x.test/j?jobid=9'),
+    );
+  });
+
   it('keeps the path case, which can matter on some sites', () => {
     expect(normalizeJobUrl('https://example.com/Jobs/AbC')).toBe('https://example.com/Jobs/AbC');
   });
