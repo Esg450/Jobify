@@ -10,6 +10,7 @@
   <Project>https://github.com/esg450/jobify</Project>
   <Overview>Job board search for Jobify. Runs JobSpy (https://github.com/speedyapply/JobSpy) as a small web service so Jobify's Find jobs page can search Indeed, LinkedIn, Glassdoor, ZipRecruiter, Google Jobs and other boards. Install Jobify first, then point Jobify at this container under Settings, Job search (or with the JOBSPY_URL variable). It has no web interface of its own and does not need a data folder.</Overview>
   <Category>Productivity: Tools:</Category>
+  <Requires>Jobify. Install it first, then enter this container's address under Settings, Job search in Jobify.</Requires>
   <Icon>https://raw.githubusercontent.com/esg450/jobify/main/unraid/icon.png</Icon>
   <TemplateURL>https://raw.githubusercontent.com/esg450/jobify/main/unraid/jobify-jobspy.xml</TemplateURL>
   <Date>2026-10-13</Date>

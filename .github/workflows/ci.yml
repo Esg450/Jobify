@@ -93,8 +93,10 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  # The optional JobSpy service (apps/jobspy) ships as its own image with the same tags, so
-  # Unraid and Compose users can update both containers together.
+  # The optional JobSpy service (apps/jobspy) ships as its own image with the same tags. It is
+  # only pushed when apps/jobspy changed since the previous release (or, on main, since the
+  # previous push), so a Jobify-only release leaves the JobSpy container alone and Unraid only
+  # flags the container that actually changed.
   jobspy-image:
     name: JobSpy Docker image
     needs: jobspy
@@ -103,16 +105,39 @@ jobs:
       PUBLISH: ${{ github.event_name != 'pull_request' }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - id: changes
+        name: Check whether apps/jobspy changed
+        shell: bash
+        run: |
+          case "${{ github.event_name }}" in
+            release) base=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || true) ;;
+            push) base="${{ github.event.before }}" ;;
+            *) base="" ;;
+          esac
+          if [ -z "$base" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+            echo "No previous version to compare against; building."
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          elif git diff --quiet "$base" HEAD -- apps/jobspy; then
+            echo "apps/jobspy is unchanged since $base; the image is not rebuilt."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "apps/jobspy changed since $base; building."
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
       - uses: docker/setup-qemu-action@v3
-        if: env.PUBLISH == 'true'
+        if: env.PUBLISH == 'true' && steps.changes.outputs.changed == 'true'
       - uses: docker/setup-buildx-action@v3
+        if: steps.changes.outputs.changed == 'true'
       - uses: docker/login-action@v3
-        if: env.PUBLISH == 'true'
+        if: env.PUBLISH == 'true' && steps.changes.outputs.changed == 'true'
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - id: meta
+        if: steps.changes.outputs.changed == 'true'
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ github.repository }}-jobspy
@@ -124,6 +149,7 @@ jobs:
             type=edge,branch=main
             type=ref,event=pr
       - uses: docker/build-push-action@v6
+        if: steps.changes.outputs.changed == 'true'
         with:
           context: apps/jobspy
           platforms: ${{ env.PUBLISH == 'true' && 'linux/amd64,linux/arm64' || 'linux/amd64' }}

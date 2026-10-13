@@ -123,6 +123,11 @@ On Unraid, new releases appear as **update ready** in the Docker tab; click it t
 Compose, run `docker compose pull && docker compose up -d`. Your data is kept across updates and
 database migrations run automatically. The running version is shown on the Settings page.
 
+The optional [JobSpy container](#job-search) (`ghcr.io/esg450/jobify-jobspy`) uses the same tags
+but is only rebuilt by releases that change it, so it does not show an update every time Jobify
+does. The two can be updated independently: the connection between them does not change from
+release to release.
+
 ## Configuration
 
 All settings are optional environment variables.
