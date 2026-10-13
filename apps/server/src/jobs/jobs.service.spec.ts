@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { today } from '../common/dates.js';
 import { createTestDatabase, type TestDatabase } from '../database/testing.js';
@@ -27,6 +27,65 @@ describe('JobsService', () => {
     expect(job.status).toBe('saved');
     expect(job.appliedOn).toBeNull();
     expect(job.events.map((event) => event.type)).toEqual(['created']);
+  });
+
+  it('rejects a job that repeats an existing URL or title and company unless allowed', async () => {
+    const original = await jobs.create(alice, {
+      title: 'Engineer',
+      company: 'Acme',
+      url: 'https://acme.com/jobs/1?utm_source=linkedin',
+    });
+
+    const sameUrl = jobs.create(alice, {
+      title: 'Software Engineer',
+      company: 'Acme Inc',
+      url: 'https://acme.com/jobs/1/',
+    });
+    await expect(sameUrl).rejects.toBeInstanceOf(ConflictException);
+    await expect(sameUrl).rejects.toMatchObject({
+      response: { duplicates: [expect.objectContaining({ id: original.id })] },
+    });
+
+    await expect(
+      jobs.create(alice, { title: ' engineer ', company: 'ACME' }),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    // Other users' jobs and different postings are not duplicates.
+    await expect(jobs.create(bob, { title: 'Engineer', company: 'Acme' })).resolves.toMatchObject({
+      company: 'Acme',
+    });
+    await expect(
+      jobs.create(alice, { title: 'Engineer', company: 'Acme', url: 'https://acme.com/jobs/2' }),
+    ).rejects.toBeInstanceOf(ConflictException);
+    await expect(
+      jobs.create(alice, { title: 'Designer', company: 'Acme', url: 'https://acme.com/jobs/3' }),
+    ).resolves.toMatchObject({ title: 'Designer' });
+
+    const forced = await jobs.create(alice, {
+      title: 'Engineer',
+      company: 'Acme',
+      allowDuplicate: true,
+    });
+    expect(forced.id).not.toBe(original.id);
+  });
+
+  it('lists duplicates across hunts with the hunt they belong to', async () => {
+    const first = await hunts.create(alice, { name: 'Spring' });
+    const original = await jobs.create(alice, { title: 'Engineer', company: 'Acme' });
+    await hunts.create(alice, { name: 'Autumn' });
+
+    const duplicates = await jobs.findDuplicates(alice, {
+      title: 'Engineer',
+      company: 'Acme',
+      url: null,
+    });
+    expect(duplicates).toEqual([
+      expect.objectContaining({
+        id: original.id,
+        hunt: { id: first.id, name: 'Spring' },
+      }),
+    ]);
+    expect(await jobs.findDuplicates(alice, { title: '', company: '', url: null })).toEqual([]);
   });
 
   it('defaults the applied date when a job is created as applied', async () => {
@@ -150,7 +209,7 @@ describe('JobsService', () => {
       NotFoundException,
     );
     await expect(
-      jobs.create(bob, { title: 'Chef', company: 'Bistro', huntId: later.id }),
+      jobs.create(bob, { title: 'Sous chef', company: 'Bistro', huntId: later.id }),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 

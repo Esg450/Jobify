@@ -111,7 +111,24 @@ export interface Job extends JobSummary {
 
 /** Writable job fields. */
 export type JobInput = Partial<Omit<Job, 'id' | 'events' | 'createdAt' | 'updatedAt'>> &
-  Pick<Job, 'title' | 'company'>;
+  Pick<Job, 'title' | 'company'> & {
+    /** Save even if the job matches one the user already has (see `DuplicateJob`). */
+    allowDuplicate?: boolean;
+  };
+
+/**
+ * An existing job that a new one repeats: same URL (ignoring tracking parameters) or same
+ * title and company. `POST /jobs` answers 409 with `{ duplicates }` unless `allowDuplicate` is set.
+ */
+export interface DuplicateJob {
+  id: number;
+  title: string;
+  company: string;
+  url: string | null;
+  status: JobStatus;
+  archived: boolean;
+  hunt: { id: number; name: string } | null;
+}
 
 export type JobSortField =
   'updatedAt' | 'createdAt' | 'appliedOn' | 'company' | 'title' | 'interest' | 'status';

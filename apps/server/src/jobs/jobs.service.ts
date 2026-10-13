@@ -1,14 +1,20 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { and, asc, desc, eq, getTableColumns, inArray, like, or, type SQL } from 'drizzle-orm';
+import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { and, asc, desc, eq, getTableColumns, inArray, like, or, sql, type SQL } from 'drizzle-orm';
 import { today } from '../common/dates.js';
 import { DATABASE, type Database } from '../database/database.module.js';
-import { jobEvents, jobs, type Job, type JobEvent } from '../database/schema.js';
+import { jobEvents, jobHunts, jobs, type Job, type JobEvent } from '../database/schema.js';
 import { HuntsService } from '../hunts/hunts.service.js';
 import type { JobStatus } from './job.constants.js';
 import type { CreateJobDto } from './dto/create-job.dto.js';
 import type { CreateJobEventDto, UpdateJobEventDto } from './dto/job-event.dto.js';
 import type { QueryJobsDto } from './dto/query-jobs.dto.js';
 import type { UpdateJobDto } from './dto/update-job.dto.js';
+import {
+  isDuplicate,
+  normalizeJobUrl,
+  normalizeText,
+  type DuplicateCandidate,
+} from './duplicates.js';
 
 /** Large text columns are left out of list responses to keep them small. */
 const { description, notes, aiSummary, coverLetter, interviewPrep, ...summaryColumns } =
@@ -19,6 +25,17 @@ export type JobSummary = Omit<
   'description' | 'notes' | 'aiSummary' | 'coverLetter' | 'interviewPrep'
 >;
 export type JobWithEvents = Job & { events: JobEvent[] };
+
+/** An existing job that a new one appears to repeat, with enough to show and link to it. */
+export interface DuplicateJob {
+  id: number;
+  title: string;
+  company: string;
+  url: string | null;
+  status: JobStatus;
+  archived: boolean;
+  hunt: { id: number; name: string } | null;
+}
 
 /** A job with the status history and interviews needed to draw it on a timeline. */
 export interface TimelineJob {
@@ -142,15 +159,65 @@ export class JobsService {
     return { ...job, events };
   }
 
+  /**
+   * The user's existing jobs (in any hunt, archived or not) that look like the same posting as
+   * `candidate`: same URL ignoring tracking parameters, or same title and company.
+   */
+  async findDuplicates(userId: number, candidate: DuplicateCandidate): Promise<DuplicateJob[]> {
+    const url = normalizeJobUrl(candidate.url);
+    const title = normalizeText(candidate.title);
+    const company = normalizeText(candidate.company);
+
+    // A cheap SQL pre-filter; `isDuplicate` makes the final call with full normalization.
+    const matches: SQL[] = [];
+    if (title && company) matches.push(eq(sql`lower(trim(${jobs.company}))`, company));
+    if (url) matches.push(like(jobs.url, `${url}%`));
+    if (matches.length === 0) return [];
+
+    const rows = await this.db
+      .select({
+        id: jobs.id,
+        title: jobs.title,
+        company: jobs.company,
+        url: jobs.url,
+        status: jobs.status,
+        archived: jobs.archived,
+        huntId: jobHunts.id,
+        huntName: jobHunts.name,
+      })
+      .from(jobs)
+      .leftJoin(jobHunts, eq(jobHunts.id, jobs.huntId))
+      .where(and(eq(jobs.userId, userId), or(...matches)))
+      .orderBy(desc(jobs.updatedAt), desc(jobs.id));
+
+    return rows
+      .filter((row) => isDuplicate(candidate, row))
+      .map(({ huntId, huntName, ...row }) => ({
+        ...row,
+        hunt: huntId != null && huntName != null ? { id: huntId, name: huntName } : null,
+      }));
+  }
+
   async create(userId: number, dto: CreateJobDto): Promise<JobWithEvents> {
-    const status = dto.status ?? 'saved';
-    const appliedOn = dto.appliedOn ?? (status === 'saved' ? null : today());
-    const huntId = await this.hunts.forNewJob(userId, dto.huntId ?? undefined);
+    const { allowDuplicate, ...values } = dto;
+    if (!allowDuplicate) {
+      const duplicates = await this.findDuplicates(userId, values);
+      if (duplicates.length > 0) {
+        throw new ConflictException({
+          message: `You already have this job: ${duplicates[0].title} at ${duplicates[0].company}`,
+          duplicates,
+        });
+      }
+    }
+
+    const status = values.status ?? 'saved';
+    const appliedOn = values.appliedOn ?? (status === 'saved' ? null : today());
+    const huntId = await this.hunts.forNewJob(userId, values.huntId ?? undefined);
 
     const id = await this.db.transaction(async (tx) => {
       const [job] = await tx
         .insert(jobs)
-        .values({ ...dto, userId, huntId, status, appliedOn })
+        .values({ ...values, userId, huntId, status, appliedOn })
         .returning({ id: jobs.id });
       await tx
         .insert(jobEvents)

@@ -155,4 +155,12 @@ export class CreateJobDto {
   @IsOptional()
   @IsInt()
   huntId?: number;
+
+  /**
+   * Save the job even if it looks like one the user already has. Without this, a job whose URL
+   * or title and company match an existing job is rejected with 409 so the user can confirm.
+   */
+  @IsOptional()
+  @IsBoolean()
+  allowDuplicate?: boolean;
 }
