@@ -16,3 +16,18 @@ services:
       # Optional AI defaults; these can also be set from the Settings page.
       # AI_PROVIDER: anthropic
       # AI_API_KEY: sk-ant-...
+      # Optional job board search through the jobspy service below; also settable in Settings.
+      # JOBSPY_URL: http://jobspy:8000
+      # JOBSPY_API_KEY: change-me
+
+  # Optional: job board search for the Find jobs page. Uncomment this service and the two
+  # JOBSPY_* variables above, and pick a key.
+  # jobspy:
+  #   image: ghcr.io/esg450/jobify-jobspy:latest
+  #   # To build from source instead: comment out `image` and uncomment `build`.
+  #   # build: apps/jobspy
+  #   container_name: jobify-jobspy
+  #   restart: unless-stopped
+  #   environment:
+  #     API_KEYS: change-me
+  #     # DEFAULT_PROXIES: user:pass@host:port

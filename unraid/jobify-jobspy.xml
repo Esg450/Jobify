@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>Jobify-JobSpy</Name>
+  <Repository>ghcr.io/esg450/jobify-jobspy:latest</Repository>
+  <Registry>https://github.com/esg450/jobify/pkgs/container/jobify-jobspy</Registry>
+  <Network>bridge</Network>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/esg450/jobify/issues</Support>
+  <Project>https://github.com/esg450/jobify</Project>
+  <Overview>Job board search for Jobify (beta: results are scraped from the boards and can be incomplete). Runs JobSpy (https://github.com/speedyapply/JobSpy) as a small web service so Jobify's Find jobs page can search Indeed, LinkedIn, Glassdoor, ZipRecruiter, Google Jobs and other boards. Install Jobify first, then point Jobify at this container under Settings, Job search (or with the JOBSPY_URL variable). It has no web interface of its own and does not need a data folder.</Overview>
+  <Category>Productivity: Tools:</Category>
+  <Requires>Jobify. Install it first, then enter this container's address under Settings, Job search in Jobify.</Requires>
+  <Icon>https://raw.githubusercontent.com/esg450/jobify/main/unraid/icon.png</Icon>
+  <TemplateURL>https://raw.githubusercontent.com/esg450/jobify/main/unraid/jobify-jobspy.xml</TemplateURL>
+  <Date>2026-10-13</Date>
+  <Config Name="Port" Target="8000" Default="8000" Mode="tcp" Description="Port Jobify connects to. Use http://[unraid ip]:[this port] as the JobSpy URL in Jobify." Type="Port" Display="always" Required="true" Mask="false">8000</Config>
+  <Config Name="API key" Target="API_KEYS" Default="" Mode="" Description="A secret of your choosing. Enter the same value as the JobSpy API key in Jobify. Leave empty to allow anyone on your network to use the service." Type="Variable" Display="always" Required="false" Mask="true"/>
+  <Config Name="Proxies" Target="DEFAULT_PROXIES" Default="" Mode="" Description="Optional, comma-separated proxies (user:pass@host:port) to route searches through. The job boards rate-limit repeated searches from one address." Type="Variable" Display="advanced" Required="false" Mask="true"/>
+  <Config Name="Max results" Target="MAX_RESULTS" Default="100" Mode="" Description="The most postings one search may request per board." Type="Variable" Display="advanced" Required="false" Mask="false">100</Config>
+  <Config Name="Concurrent searches" Target="MAX_CONCURRENT_SEARCHES" Default="2" Mode="" Description="How many searches run at the same time; others wait their turn." Type="Variable" Display="advanced" Required="false" Mask="false">2</Config>
+</Container>

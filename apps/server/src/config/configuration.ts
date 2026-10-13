@@ -24,6 +24,11 @@ export interface AppConfig {
     apiKey: string | undefined;
     baseUrl: string | undefined;
   };
+  /** The JobSpy service used by the Find jobs page (see apps/jobspy). */
+  search: {
+    baseUrl: string | undefined;
+    apiKey: string | undefined;
+  };
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -40,6 +45,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       model: env.AI_MODEL || undefined,
       apiKey: env.AI_API_KEY || undefined,
       baseUrl: env.AI_BASE_URL || undefined,
+    },
+    search: {
+      baseUrl: env.JOBSPY_URL || undefined,
+      apiKey: env.JOBSPY_API_KEY || undefined,
     },
   };
 }

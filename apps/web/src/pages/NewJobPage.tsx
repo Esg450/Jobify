@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 import { useCreateJob, useViewedHunt } from '../api/hooks';
 import type { JobDraft, JobInput } from '../api/types';
 import { DuplicateJobDialog, duplicatesFromError } from '../components/DuplicateJobDialog';
@@ -13,8 +13,10 @@ export function NewJobPage() {
   const createJob = useCreateJob();
   // The job joins the hunt on screen. Without one, the server starts a hunt for it.
   const { hunt } = useViewedHunt();
+  // The Find jobs page hands over the posting to review through the router state.
+  const handed = (useLocation().state as { draft?: JobDraft } | null)?.draft;
   const [draft, setDraft] = useState<{ values: JobDraft; version: number }>({
-    values: {},
+    values: handed ?? {},
     version: 0,
   });
   // The input the server refused as a duplicate, kept so "Add anyway" can resend it.

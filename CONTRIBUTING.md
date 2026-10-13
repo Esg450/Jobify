@@ -34,12 +34,14 @@ apps/
       jobs/          Jobs and their timeline events
       importers/     Turning job posting URLs or HTML into job drafts
       ai/            AI providers, prompts and AI-powered features
+      search/        Job board search through the JobSpy service
       stats/         Dashboard numbers
       backup/        JSON/CSV export and JSON import
       auth/          Sign-in, sessions and the guard that protects every route
       users/         Accounts, profiles and user management
       settings/      Key/value settings stored in the database
       database/      Drizzle schema and connection
+  jobspy/            Optional Python service wrapping JobSpy for the Find jobs page (own image)
   web/               React single-page app
     src/
       api/           Typed API client, response types and TanStack Query hooks

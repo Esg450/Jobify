@@ -1,17 +1,51 @@
 /**
  * How two jobs are judged to be the same posting. A job is a duplicate of another when its
- * URL points at the same page (ignoring the query string, which usually carries tracking
- * parameters, and the fragment) or when its title and company match ignoring case and
+ * URL points at the same page (ignoring tracking parameters and the fragment, but not the
+ * parameters that name the posting) or when its title and company match ignoring case and
  * surrounding whitespace.
  */
 
-/** The comparable form of a job URL: lower-cased origin plus path, with no trailing slash. */
+/**
+ * Query parameters that identify the posting rather than track where the visitor came from.
+ * Indeed (`jk`), LinkedIn search pages (`currentJobId`), embedded ATS postings (`gh_jid`,
+ * `ashby_jid`) and many career sites put the job id in the query string, so dropping the whole
+ * string would make every posting on those sites look the same.
+ */
+const ID_PARAMETERS = new Set(['jk', 'job', 'req', 'posting', 'p']);
+/** Parameters that end in "id" but track the visitor, not the posting. */
+const TRACKING_PARAMETERS = new Set([
+  'refid',
+  'trackingid',
+  'fbclid',
+  'gclid',
+  'dclid',
+  'msclkid',
+  'clickid',
+  'sessionid',
+  'visitorid',
+  'userid',
+  'utm_id',
+]);
+function identifiesPosting(name: string): boolean {
+  const lower = name.toLowerCase();
+  if (TRACKING_PARAMETERS.has(lower)) return false;
+  return ID_PARAMETERS.has(lower) || lower.endsWith('id');
+}
+
+/**
+ * The comparable form of a job URL: lower-cased origin plus path, with no trailing slash, plus
+ * any query parameters that identify the posting (sorted, so order does not matter).
+ */
 export function normalizeJobUrl(url: string | null | undefined): string | null {
   if (!url) return null;
   try {
     const parsed = new URL(url.trim());
     const path = parsed.pathname.replace(/\/+$/, '');
-    return `${parsed.origin.toLowerCase()}${path}`;
+    const ids = [...parsed.searchParams.entries()]
+      .filter(([name, value]) => value !== '' && identifiesPosting(name))
+      .map(([name, value]) => `${name.toLowerCase()}=${value}`)
+      .sort();
+    return `${parsed.origin.toLowerCase()}${path}${ids.length ? `?${ids.join('&')}` : ''}`;
   } catch {
     return url.trim().toLowerCase() || null;
   }

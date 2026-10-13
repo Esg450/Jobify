@@ -129,3 +129,31 @@ Respond with a single JSON object and nothing else. Use these keys, omitting any
 - "description": the full job description as Markdown, without page navigation or boilerplate`,
   };
 }
+
+/**
+ * Asks for a handful of job board searches that fit the candidate. Boards match on title words
+ * and search one phrase at a time, so the useful answer is several short title-like phrases
+ * rather than one long keyword string.
+ */
+export function buildSearchSuggestionPrompt(profile: UserProfile): CompletionRequest {
+  return {
+    system: SYSTEM_PROMPT,
+    maxTokens: 2_000,
+    prompt: `Suggest job board searches for this candidate.
+
+${describeProfile(profile)}
+
+Job boards match on words in the job title and search one phrase at a time, so suggest 4 to 6 \
+different searches that together cover the roles this candidate should see. Order them best fit \
+first. Each search needs:
+- "terms": a 2 to 4 word phrase a job board would match, usually a job title (for example \
+"platform engineer" or "senior product designer"), without seniority unless it matters, and \
+without skills or buzzwords
+- "location": the city or region they want to work in, taken from what they said; omit it if \
+they did not say or want remote work anywhere
+- "remote": true only if they said they want remote work
+
+Respond with a single JSON object and nothing else: {"searches": [{"terms": "...", "location": \
+"...", "remote": false}, ...]}`,
+  };
+}

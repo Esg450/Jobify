@@ -11,6 +11,7 @@ import { HealthController } from './health.controller.js';
 import { ImportModule } from './importers/import.module.js';
 import { JobsModule } from './jobs/jobs.module.js';
 import { LogsController } from './logging/logs.controller.js';
+import { SearchModule } from './search/search.module.js';
 import { SettingsModule } from './settings/settings.module.js';
 import { StatsModule } from './stats/stats.module.js';
 
@@ -24,6 +25,7 @@ import { StatsModule } from './stats/stats.module.js';
     JobsModule,
     ImportModule,
     AiModule,
+    SearchModule,
     StatsModule,
     BackupModule,
     // Serves the built React app; client-side routes fall back to index.html.

@@ -249,7 +249,126 @@ export interface AiSettingsInput {
   baseUrl?: string;
 }
 
+/** Values from the AI settings form to try before saving. A blank key uses the saved one. */
+export interface AiTestInput {
+  provider?: AiProviderId;
+  model?: string;
+  apiKey?: string;
+  baseUrl?: string;
+}
+
 export type AiTask = 'summary' | 'description' | 'cover-letter' | 'interview-prep';
+
+/** The job boards JobSpy can search (apps/server/src/search/search.constants.ts). */
+export const SEARCH_SITES = {
+  indeed: 'Indeed',
+  linkedin: 'LinkedIn',
+  zip_recruiter: 'ZipRecruiter',
+  glassdoor: 'Glassdoor',
+  google: 'Google Jobs',
+  bayt: 'Bayt',
+  naukri: 'Naukri',
+  bdjobs: 'BDJobs',
+  hellowork: 'HelloWork',
+} as const;
+export type SearchSite = keyof typeof SEARCH_SITES;
+export const DEFAULT_SEARCH_SITES: SearchSite[] = ['indeed', 'linkedin'];
+
+export const SEARCH_JOB_TYPES = ['fulltime', 'parttime', 'contract', 'internship'] as const;
+export type SearchJobType = (typeof SEARCH_JOB_TYPES)[number];
+export const SEARCH_JOB_TYPE_LABELS: Record<SearchJobType, string> = {
+  fulltime: 'Full-time',
+  parttime: 'Part-time',
+  contract: 'Contract',
+  internship: 'Internship',
+};
+
+export const MAX_SEARCH_RESULTS = 100;
+
+export interface SearchSettings {
+  enabled: boolean;
+  baseUrl: string;
+  hasApiKey: boolean;
+  /** Whether the Find jobs page is available. */
+  configured: boolean;
+  /** Boards selected by default on the Find jobs page. */
+  defaultSites: SearchSite[];
+  /** Country for Indeed and Glassdoor when a search does not name one. */
+  country: string;
+  /** Search radius in miles; null leaves it to JobSpy (50). */
+  distance: number | null;
+  /** Fetch each LinkedIn posting for its description (slower). */
+  fetchDescriptions: boolean;
+  /** Convert hourly, weekly and monthly pay to yearly figures. */
+  annualSalaries: boolean;
+  /** How many proxies are saved; the proxies themselves are never returned. */
+  proxyCount: number;
+}
+
+export interface SearchSettingsInput {
+  enabled: boolean;
+  baseUrl?: string;
+  /** Omit to keep the saved key; an empty string removes it. */
+  apiKey?: string;
+  defaultSites?: SearchSite[];
+  country?: string;
+  distance?: number | null;
+  fetchDescriptions?: boolean;
+  annualSalaries?: boolean;
+  /** Omit to keep the saved proxies; an empty string removes them. */
+  proxies?: string;
+}
+
+export interface SearchTestInput {
+  baseUrl?: string;
+  apiKey?: string;
+}
+
+export interface SearchTestResult {
+  version: string | null;
+  sites: string[];
+}
+
+export interface SearchQuery {
+  terms: string;
+  location?: string;
+  sites?: SearchSite[];
+  remote?: boolean;
+  /** Only postings from the last N hours. */
+  hoursOld?: number;
+  jobType?: SearchJobType;
+  /** Country for Indeed and Glassdoor, e.g. "USA" or "UK". */
+  country?: string;
+  limit?: number;
+}
+
+/** One posting found on a job board. `existing` is set when the user already has it. */
+export interface SearchResult {
+  id: string;
+  site: string;
+  draft: JobDraft;
+  existing: DuplicateJob | null;
+}
+
+export interface SearchResponse {
+  results: SearchResult[];
+  /** Boards that returned nothing, which usually means they are rate limiting the service. */
+  warnings: string[];
+}
+
+/** A job board search the AI proposed from the user's profile. */
+export interface SearchSuggestion {
+  terms: string;
+  location?: string;
+  remote: boolean;
+}
+
+export interface SearchCandidate {
+  id: string;
+  title: string;
+  company: string;
+  url?: string;
+}
 
 export interface Profile {
   name: string;

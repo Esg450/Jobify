@@ -47,6 +47,11 @@ container with an embedded SQLite database, so there is nothing else to set up.
   sites, plus generic importers that read the structured data, embedded job data and page
   content that most other career pages have. Pages pasted from Indeed, Glassdoor and other
   sites that block automated access are recognised too, and plain text works as well.
+- **Find jobs without leaving the app (beta).** Connect the optional Jobify JobSpy container and
+  search Indeed, LinkedIn, Glassdoor, ZipRecruiter, Google Jobs and other boards from a
+  **Find jobs** page. Results that are already in your jobs are marked, and any other posting
+  imports into your hunt with one click. Results are scraped from the boards, so expect the odd
+  gap or stale posting.
 - **Optional AI assistant.** Connect Anthropic (Claude), OpenAI, Google Gemini, a local Ollama
   model or any OpenAI-compatible API to summarize postings, tidy up descriptions, draft cover
   letters, prepare for interviews and extract job details from any page.
@@ -92,7 +97,9 @@ docker run -d --name jobify \
 
 ### Unraid
 
-A template is included at [`unraid/jobify.xml`](unraid/jobify.xml). Copy it to
+Jobify is in Community Applications; search for **Jobify** in the Apps tab. The optional
+**Jobify JobSpy** container for [job board search](#job-search) is there too. If you prefer to
+install by hand, a template is included at [`unraid/jobify.xml`](unraid/jobify.xml). Copy it to
 `/boot/config/plugins/dockerMan/templates-user/` on your server, then choose **Add Container** in
 the Docker tab and pick **Jobify** from the template list. Data is stored in
 `/mnt/user/appdata/jobify` and the container runs as `99:100` (`nobody:users`) by default.
@@ -109,33 +116,42 @@ docker build -t jobify .
 
 Images are published to the GitHub Container Registry for `amd64` and `arm64`:
 
-| Tag            | What it is                                               |
-| -------------- | -------------------------------------------------------- |
-| `latest`       | The newest release. Recommended.                         |
-| `1.2.3`, `1.2` | A specific release, if you want to pin a version.        |
-| `edge`         | The current `main` branch, for trying unreleased changes |
+| Tag            | What it is                                                    |
+| -------------- | ------------------------------------------------------------- |
+| `latest`       | The newest release. Recommended.                              |
+| `1.2.3`, `1.2` | A specific release, if you want to pin a version.             |
+| `beta`         | The newest pre-release, for trying features before they ship. |
+| `edge`         | The current `main` branch, for trying unreleased changes      |
 
 On Unraid, new releases appear as **update ready** in the Docker tab; click it to update. With
 Compose, run `docker compose pull && docker compose up -d`. Your data is kept across updates and
 database migrations run automatically. The running version is shown on the Settings page.
 
+The optional [JobSpy container](#job-search) (`ghcr.io/esg450/jobify-jobspy`) uses the same tags
+but is only rebuilt by releases that change it, so it does not show an update every time Jobify
+does. The two can be updated independently: the connection between them does not change from
+release to release.
+
 ## Configuration
 
 All settings are optional environment variables.
 
-| Variable        | Default         | Description                                                                                 |
-| --------------- | --------------- | ------------------------------------------------------------------------------------------- |
-| `PORT`          | `3000`          | Port the web server listens on.                                                             |
-| `DATA_DIR`      | `/data`         | Directory for the SQLite database.                                                          |
-| `PUID` / `PGID` | `1000` / `1000` | User and group the container runs as. The data directory is handed to this user on startup. |
-| `LOG_LEVEL`     | `log`           | How much to log: `error`, `warn`, `log`, or `debug` to also record every request.           |
-| `AI_PROVIDER`   | _unset_         | Default AI provider: `anthropic`, `openai`, `gemini`, `ollama` or `openai_compatible`.      |
-| `AI_MODEL`      | _unset_         | Default model. Anthropic defaults to `claude-opus-5-5`; other providers need a model name.  |
-| `AI_API_KEY`    | _unset_         | API key for the provider.                                                                   |
-| `AI_BASE_URL`   | _unset_         | Custom API endpoint, e.g. `http://192.168.1.10:11434` for Ollama.                           |
+| Variable         | Default         | Description                                                                                         |
+| ---------------- | --------------- | --------------------------------------------------------------------------------------------------- |
+| `PORT`           | `3000`          | Port the web server listens on.                                                                     |
+| `DATA_DIR`       | `/data`         | Directory for the SQLite database.                                                                  |
+| `PUID` / `PGID`  | `1000` / `1000` | User and group the container runs as. The data directory is handed to this user on startup.         |
+| `LOG_LEVEL`      | `log`           | How much to log: `error`, `warn`, `log`, or `debug` to also record every request.                   |
+| `AI_PROVIDER`    | _unset_         | Default AI provider: `anthropic`, `openai`, `gemini`, `ollama` or `openai_compatible`.              |
+| `AI_MODEL`       | _unset_         | Default model. Anthropic defaults to `claude-opus-5-5`; other providers need a model name.          |
+| `AI_API_KEY`     | _unset_         | API key for the provider.                                                                           |
+| `AI_BASE_URL`    | _unset_         | Custom API endpoint, e.g. `http://192.168.1.10:11434` for Ollama.                                   |
+| `JOBSPY_URL`     | _unset_         | URL of a Jobify JobSpy container, which turns on the Find jobs page. See [Job search](#job-search). |
+| `JOBSPY_API_KEY` | _unset_         | The key set on that container.                                                                      |
 
-AI settings can also be managed from the **Settings** page; settings saved there take precedence
-over the environment variables.
+AI and job search settings can also be managed from the **Settings** page; settings saved there
+take precedence over the environment variables. Both pages let you test a connection before
+saving, and saving only succeeds once the provider or service answers.
 
 ## AI providers
 
@@ -169,6 +185,48 @@ salary; with an AI provider configured, Jobify can fill in anything that is stil
 
 Want to support another site? Importers are small, self-contained classes; see
 [CONTRIBUTING.md](CONTRIBUTING.md#adding-a-job-site-importer).
+
+## Job search
+
+> **Beta.** Job board search is new. Results are scraped from the boards by JobSpy, so they can be
+> incomplete, out of date or occasionally wrong (a salary read from the wrong line, a location
+> that is really the company's HQ). Treat them as leads and check the posting before you apply.
+
+Jobify can search the job boards for you through [JobSpy](https://github.com/speedyapply/JobSpy),
+which it runs as a second, optional container (`ghcr.io/esg450/jobify-jobspy`, source in
+[`apps/jobspy`](apps/jobspy)). Keeping it separate keeps the scraping dependencies out of the main
+image and lets you update or restart it on its own.
+
+1. **Start the container.** On Unraid, install **Jobify JobSpy** from Community Applications, the
+   same place you installed Jobify, and set an API key (if it is not in the store yet, use the
+   [`unraid/jobify-jobspy.xml`](unraid/jobify-jobspy.xml) template the same way as Jobify's). With
+   Compose, uncomment the `jobspy` service in [`docker-compose.yml`](docker-compose.yml). By hand:
+
+   ```sh
+   docker run -d --name jobify-jobspy -p 8000:8000 -e API_KEYS=change-me ghcr.io/esg450/jobify-jobspy:latest
+   ```
+
+2. **Connect it.** In Jobify open **Settings → Job search**, enable it, enter the container's URL as
+   seen from the Jobify server (for example `http://192.168.1.10:8000`) and the key, then
+   **Test connection**. Saving checks the connection too, so a wrong address is never saved. A
+   **Find jobs** page appears in the sidebar for everyone. Once connected, **Search defaults** on
+   the same page sets how searches run: the boards selected by default, the country for Indeed
+   and Glassdoor (they search one country at a time), the search radius, whether LinkedIn
+   descriptions are fetched during the search or only on import, yearly salary figures, and
+   proxies to spread searches across addresses.
+
+3. **Search.** Enter keywords, a location, which boards to search and how recent the postings should
+   be. With an AI provider set up and something in your profile, **Suggest from my profile** fills
+   in the keywords, location and remote preference for you (and offers a few alternative titles to
+   try); nothing runs until you press Search, so you can adjust it first. Postings you already track are marked; **Import** on any other one runs it through Jobify's
+   importers for the full description and opens the Add job page for you to review and save.
+
+Searches scrape the boards live, so they take a while (up to a minute across several boards) and
+the boards rate-limit addresses that search too often. A board that answers with nothing is
+automatically tried once more a few seconds later; if LinkedIn or Glassdoor keep returning
+nothing, wait a bit, search fewer boards at a time, or add proxies under **Search defaults** (or
+on the container with `DEFAULT_PROXIES`). The service also works with the community
+[jobspy-api](https://github.com/rainmanjam/jobspy-api) container, which uses the same endpoints.
 
 ## Users and accounts
 

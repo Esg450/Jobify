@@ -6,6 +6,7 @@ import type {
   AiSettings,
   AiSettingsInput,
   AiTask,
+  AiTestInput,
   AuthStatus,
   EventInput,
   HuntInput,
@@ -19,6 +20,15 @@ import type {
   JobSummary,
   Preferences,
   Profile,
+  DuplicateJob,
+  SearchCandidate,
+  SearchQuery,
+  SearchResponse,
+  SearchSettings,
+  SearchSettingsInput,
+  SearchSuggestion,
+  SearchTestInput,
+  SearchTestResult,
   Stats,
   TimelineJob,
   User,
@@ -37,6 +47,7 @@ export const queryKeys = {
     ['jobs', 'timeline', includeArchived, huntId] as const,
   aiSettings: ['ai', 'settings'] as const,
   aiProviders: ['ai', 'providers'] as const,
+  searchSettings: ['search', 'settings'] as const,
   profile: ['profile'] as const,
   preferences: ['preferences'] as const,
   importSites: ['import', 'sites'] as const,
@@ -385,8 +396,55 @@ export function useUpdateAiSettings() {
   });
 }
 
+/** Tries the values in the AI settings form before they are saved. */
 export function useTestAi() {
-  return useMutation({ mutationFn: () => api.post<{ reply: string }>('/ai/test') });
+  return useMutation({
+    mutationFn: (values: AiTestInput) => api.post<{ reply: string }>('/ai/test', values),
+  });
+}
+
+export function useSearchSettings() {
+  return useQuery({
+    queryKey: queryKeys.searchSettings,
+    queryFn: () => api.get<SearchSettings>('/search/settings'),
+  });
+}
+
+export function useUpdateSearchSettings() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: SearchSettingsInput) => api.put<SearchSettings>('/search/settings', input),
+    onSuccess: (settings) => queryClient.setQueryData(queryKeys.searchSettings, settings),
+  });
+}
+
+/** Tries the values in the settings form before they are saved. A blank key uses the saved one. */
+export function useTestSearch() {
+  return useMutation({
+    mutationFn: (values: SearchTestInput) => api.post<SearchTestResult>('/search/test', values),
+  });
+}
+
+/** A job board search. A mutation rather than a query: each search scrapes the boards live. */
+export function useSearchJobs() {
+  return useMutation({
+    mutationFn: (query: SearchQuery) => api.post<SearchResponse>('/search', query),
+  });
+}
+
+/** Searches the AI proposes from the user's profile, best fit first. */
+export function useSuggestSearches() {
+  return useMutation({
+    mutationFn: () => api.post<{ suggestions: SearchSuggestion[] }>('/search/suggest'),
+  });
+}
+
+/** Which of some earlier search results the user has saved since, keyed by result id. */
+export function useCheckSearchResults() {
+  return useMutation({
+    mutationFn: (candidates: SearchCandidate[]) =>
+      api.post<Record<string, DuplicateJob | null>>('/search/check', { candidates }),
+  });
 }
 
 export function useRunAiTask(jobId: number) {

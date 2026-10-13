@@ -171,7 +171,8 @@ export class JobsService {
     // A cheap SQL pre-filter; `isDuplicate` makes the final call with full normalization.
     const matches: SQL[] = [];
     if (title && company) matches.push(eq(sql`lower(trim(${jobs.company}))`, company));
-    if (url) matches.push(like(jobs.url, `${url}%`));
+    // Stored URLs keep their original query string, so only the page part can be matched here.
+    if (url) matches.push(like(jobs.url, `${url.split('?')[0]}%`));
     if (matches.length === 0) return [];
 
     const rows = await this.db

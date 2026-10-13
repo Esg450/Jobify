@@ -3,7 +3,7 @@ import { Type } from 'class-transformer';
 import { IsIn, IsInt } from 'class-validator';
 import { AdminOnly, CurrentUser } from '../auth/decorators.js';
 import type { PublicUser } from '../users/users.service.js';
-import { AI_PROVIDERS, UpdateAiSettingsDto } from './ai-settings.js';
+import { AI_PROVIDERS, TestAiSettingsDto, UpdateAiSettingsDto } from './ai-settings.js';
 import { AiService } from './ai.service.js';
 import { AI_TASKS, type AiTask } from './prompts.js';
 
@@ -37,11 +37,12 @@ export class AiController {
     return this.ai.updateSettings(dto);
   }
 
+  /** Tries the values in the form before they are saved. */
   @Post('test')
   @AdminOnly()
   @HttpCode(HttpStatus.OK)
-  test() {
-    return this.ai.testConnection();
+  test(@Body() dto: TestAiSettingsDto) {
+    return this.ai.testConnection(dto);
   }
 
   @Post('jobs/:id/:task')
