@@ -47,10 +47,11 @@ container with an embedded SQLite database, so there is nothing else to set up.
   sites, plus generic importers that read the structured data, embedded job data and page
   content that most other career pages have. Pages pasted from Indeed, Glassdoor and other
   sites that block automated access are recognised too, and plain text works as well.
-- **Find jobs without leaving the app.** Connect the optional Jobify JobSpy container and search
-  Indeed, LinkedIn, Glassdoor, ZipRecruiter, Google Jobs and other boards from a **Find jobs**
-  page. Results that are already in your jobs are marked, and any other posting imports into your
-  hunt with one click.
+- **Find jobs without leaving the app (beta).** Connect the optional Jobify JobSpy container and
+  search Indeed, LinkedIn, Glassdoor, ZipRecruiter, Google Jobs and other boards from a
+  **Find jobs** page. Results that are already in your jobs are marked, and any other posting
+  imports into your hunt with one click. Results are scraped from the boards, so expect the odd
+  gap or stale posting.
 - **Optional AI assistant.** Connect Anthropic (Claude), OpenAI, Google Gemini, a local Ollama
   model or any OpenAI-compatible API to summarize postings, tidy up descriptions, draft cover
   letters, prepare for interviews and extract job details from any page.
@@ -96,7 +97,9 @@ docker run -d --name jobify \
 
 ### Unraid
 
-A template is included at [`unraid/jobify.xml`](unraid/jobify.xml). Copy it to
+Jobify is in Community Applications; search for **Jobify** in the Apps tab. The optional
+**Jobify JobSpy** container for [job board search](#job-search) is there too. If you prefer to
+install by hand, a template is included at [`unraid/jobify.xml`](unraid/jobify.xml). Copy it to
 `/boot/config/plugins/dockerMan/templates-user/` on your server, then choose **Add Container** in
 the Docker tab and pick **Jobify** from the template list. Data is stored in
 `/mnt/user/appdata/jobify` and the container runs as `99:100` (`nobody:users`) by default.
@@ -184,15 +187,19 @@ Want to support another site? Importers are small, self-contained classes; see
 
 ## Job search
 
+> **Beta.** Job board search is new. Results are scraped from the boards by JobSpy, so they can be
+> incomplete, out of date or occasionally wrong (a salary read from the wrong line, a location
+> that is really the company's HQ). Treat them as leads and check the posting before you apply.
+
 Jobify can search the job boards for you through [JobSpy](https://github.com/speedyapply/JobSpy),
 which it runs as a second, optional container (`ghcr.io/esg450/jobify-jobspy`, source in
 [`apps/jobspy`](apps/jobspy)). Keeping it separate keeps the scraping dependencies out of the main
 image and lets you update or restart it on its own.
 
-1. **Start the container.** On Unraid, add it from the
-   [`unraid/jobify-jobspy.xml`](unraid/jobify-jobspy.xml) template the same way as Jobify and set an
-   API key. With Compose, uncomment the `jobspy` service in [`docker-compose.yml`](docker-compose.yml).
-   By hand:
+1. **Start the container.** On Unraid, install **Jobify JobSpy** from Community Applications, the
+   same place you installed Jobify, and set an API key (if it is not in the store yet, use the
+   [`unraid/jobify-jobspy.xml`](unraid/jobify-jobspy.xml) template the same way as Jobify's). With
+   Compose, uncomment the `jobspy` service in [`docker-compose.yml`](docker-compose.yml). By hand:
 
    ```sh
    docker run -d --name jobify-jobspy -p 8000:8000 -e API_KEYS=change-me ghcr.io/esg450/jobify-jobspy:latest
@@ -212,7 +219,8 @@ image and lets you update or restart it on its own.
    importers for the full description and opens the Add job page for you to review and save.
 
 Searches scrape the boards live, so they take a while (up to a minute across several boards) and
-the boards rate-limit addresses that search too often. If LinkedIn or Glassdoor start returning
+the boards rate-limit addresses that search too often. A board that answers with nothing is
+automatically tried once more a few seconds later; if LinkedIn or Glassdoor keep returning
 nothing, wait a bit, search fewer boards at a time, or add proxies under **Search defaults** (or
 on the container with `DEFAULT_PROXIES`). The service also works with the community
 [jobspy-api](https://github.com/rainmanjam/jobspy-api) container, which uses the same endpoints.

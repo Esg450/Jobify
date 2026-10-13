@@ -78,7 +78,14 @@ export function SearchPage() {
   if (!settings.data.configured) {
     return (
       <>
-        <PageHeader title="Find jobs" />
+        <PageHeader
+          title={
+            <span className="flex items-center gap-2">
+              Find jobs
+              <BetaBadge />
+            </span>
+          }
+        />
         <Card>
           <EmptyState
             icon={<Search className="size-6" />}
@@ -101,6 +108,17 @@ export function SearchPage() {
     );
   }
   return <SearchView settings={settings.data} />;
+}
+
+function BetaBadge() {
+  return (
+    <span
+      title="Job board search is new. Results come from scraping the boards and can be incomplete or inaccurate."
+      className="rounded-md bg-amber-100 px-1.5 py-0.5 text-xs font-semibold tracking-wide text-amber-800 uppercase dark:bg-amber-950 dark:text-amber-300"
+    >
+      Beta
+    </span>
+  );
 }
 
 function SearchView({ settings }: { settings: SearchSettingsValues }) {
@@ -149,8 +167,13 @@ function SearchView({ settings }: { settings: SearchSettingsValues }) {
   return (
     <>
       <PageHeader
-        title="Find jobs"
-        description="Search the job boards and pull postings straight into your hunt."
+        title={
+          <span className="flex items-center gap-2">
+            Find jobs
+            <BetaBadge />
+          </span>
+        }
+        description="Search the job boards and pull postings straight into your hunt. Results are scraped from the boards, so they can be incomplete or out of date: check the posting before you apply."
       />
       <div className="flex flex-col gap-4">
         <SearchForm

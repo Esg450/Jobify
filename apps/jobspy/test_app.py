@@ -7,6 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 os.environ["API_KEYS"] = "secret"
+os.environ["RETRY_DELAY_SECONDS"] = "0"
 
 import app as service  # noqa: E402 - after the env var so auth is on
 
@@ -17,6 +18,8 @@ def client(monkeypatch):
 
     def fake_scrape_jobs(**options):
         calls.append(options)
+        if "indeed" not in options["site_name"]:
+            return pd.DataFrame()
         return pd.DataFrame(
             [
                 {
@@ -78,8 +81,10 @@ def test_search_passes_options_and_cleans_results(client):
     assert job["min_amount"] == 150000.0
     assert job["date_posted"] == "2026-10-01"
     assert job["is_remote"] is False
+    assert body["retried"] == ["linkedin"]  # the stub only ever answers for Indeed
 
-    (options,) = client.calls
+    options, retry = client.calls
+    assert retry["site_name"] == ["linkedin"]
     assert options["site_name"] == ["indeed", "linkedin"]
     assert options["search_term"] == "platform engineer"
     assert options["location"] == "Austin, TX"
@@ -87,6 +92,28 @@ def test_search_passes_options_and_cleans_results(client):
     assert options["hours_old"] == 72
     assert options["results_wanted"] == 5
     assert options["description_format"] == "markdown"
+
+
+def test_retries_only_the_boards_that_returned_nothing(client, monkeypatch):
+    calls = []
+
+    def flaky_scrape_jobs(**options):
+        calls.append(options["site_name"])
+        rows = [{"id": "in-1", "site": "indeed", "title": "A", "company": "Acme"}]
+        if len(calls) > 1:  # LinkedIn only answers the second time
+            rows.append({"id": "li-1", "site": "linkedin", "title": "B", "company": "Globex"})
+        return pd.DataFrame([row for row in rows if row["site"] in options["site_name"]])
+
+    monkeypatch.setattr(service, "scrape_jobs", flaky_scrape_jobs)
+    body = client.get(
+        "/api/v1/search_jobs",
+        params={"search_term": "x", "site_name": "indeed,linkedin"},
+        headers={"x-api-key": "secret"},
+    ).json()
+    assert calls == [["indeed", "linkedin"], ["linkedin"]]
+    assert body["count"] == 2
+    assert {job["site"] for job in body["jobs"]} == {"indeed", "linkedin"}
+    assert body["retried"] == ["linkedin"]
 
 
 def test_search_rejects_unknown_site(client):

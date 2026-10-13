@@ -44,6 +44,10 @@ DEFAULT_PROXIES = [p.strip() for p in os.environ.get("DEFAULT_PROXIES", "").spli
 MAX_RESULTS = int(os.environ.get("MAX_RESULTS", "100"))
 # Scrapes are slow and the boards rate-limit aggressively, so only a few run at once.
 CONCURRENCY = int(os.environ.get("MAX_CONCURRENT_SEARCHES", "2"))
+# A board sometimes answers with nothing (a throttled request, a flaky page) and works a moment
+# later, so boards that returned no results are tried again before the search is declared empty.
+RETRIES = int(os.environ.get("RETRY_EMPTY_BOARDS", "1"))
+RETRY_DELAY = float(os.environ.get("RETRY_DELAY_SECONDS", "3"))
 
 SITES = [site.value for site in Site]
 JOB_TYPES = ["fulltime", "parttime", "internship", "contract"]
@@ -163,14 +167,43 @@ async def search_jobs(
 
     log.info("Searching %s for %r in %r", ", ".join(sites), search_term, location)
     async with searches:
-        try:
-            frame = await run_in_threadpool(scrape_jobs, **options)
-        except Exception as error:  # noqa: BLE001 - every scraper failure becomes a 502
-            log.exception("Search failed")
-            raise HTTPException(502, f"JobSpy failed: {error}") from error
+        frame, retried = await scrape_with_retries(options)
 
     jobs = to_records(frame) if frame is not None else []
-    return {"count": len(jobs), "jobs": jobs}
+    return {"count": len(jobs), "jobs": jobs, "retried": retried}
+
+
+def sites_answered(frame: pd.DataFrame | None) -> set[str]:
+    if frame is None or frame.empty or "site" not in frame.columns:
+        return set()
+    return {str(site) for site in frame["site"].dropna().unique()}
+
+
+async def scrape_with_retries(options: dict[str, Any]) -> tuple[pd.DataFrame | None, list[str]]:
+    """Runs the scrape, then retries only the boards that returned nothing."""
+    frame = await scrape(options)
+    retried: list[str] = []
+    for _ in range(RETRIES):
+        missing = [site for site in options["site_name"] if site not in sites_answered(frame)]
+        if not missing:
+            break
+        log.info("No results from %s; retrying in %ss", ", ".join(missing), RETRY_DELAY)
+        await asyncio.sleep(RETRY_DELAY)
+        retry = await scrape({**options, "site_name": missing})
+        retried = sorted(set(retried) | set(missing))
+        if retry is not None and not retry.empty:
+            frame = retry if frame is None or frame.empty else pd.concat([frame, retry], ignore_index=True)
+    if frame is not None and not frame.empty and "id" in frame.columns:
+        frame = frame.drop_duplicates(subset=["id"], ignore_index=True)
+    return frame, retried
+
+
+async def scrape(options: dict[str, Any]) -> pd.DataFrame | None:
+    try:
+        return await run_in_threadpool(scrape_jobs, **options)
+    except Exception as error:  # noqa: BLE001 - every scraper failure becomes a 502
+        log.exception("Search failed")
+        raise HTTPException(502, f"JobSpy failed: {error}") from error
 
 
 if __name__ == "__main__":

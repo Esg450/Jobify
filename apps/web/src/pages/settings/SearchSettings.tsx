@@ -63,7 +63,14 @@ function SearchSettingsCard({ settings }: { settings: SearchSettingsValues }) {
   return (
     <Card>
       <CardHeader
-        title="Job search"
+        title={
+          <span className="flex items-center gap-2">
+            Job search
+            <span className="rounded-md bg-amber-100 px-1.5 py-0.5 text-xs font-semibold tracking-wide text-amber-800 uppercase dark:bg-amber-950 dark:text-amber-300">
+              Beta
+            </span>
+          </span>
+        }
         description={
           <>
             Search Indeed, LinkedIn, Glassdoor and other boards from inside Jobify through a{' '}
@@ -76,7 +83,8 @@ function SearchSettingsCard({ settings }: { settings: SearchSettingsValues }) {
               JobSpy service
             </a>{' '}
             running on your server. Shared by everyone on this Jobify; the API key is stored on your
-            server and never sent back to the browser.
+            server and never sent back to the browser. This is a beta feature: results are scraped
+            from the boards and can be incomplete or inaccurate.
           </>
         }
       />
