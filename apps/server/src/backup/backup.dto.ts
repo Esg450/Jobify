@@ -13,6 +13,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { IsCalendarDate } from '../common/validators.js';
+import { CHAT_ROLES, type ChatRole } from '../database/schema.js';
 import { CreateJobDto } from '../jobs/dto/create-job.dto.js';
 import {
   JOB_EVENT_TYPES,
@@ -51,6 +52,20 @@ export class BackupEventDto {
   occurredAt!: string;
 }
 
+export class BackupChatMessageDto {
+  @IsIn(CHAT_ROLES)
+  role!: ChatRole;
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(100_000)
+  content!: string;
+
+  @IsOptional()
+  @IsISO8601()
+  createdAt?: string;
+}
+
 export class BackupHuntDto {
   @IsString()
   @IsNotEmpty()
@@ -82,6 +97,13 @@ export class BackupJobDto extends OmitType(CreateJobDto, ['huntId'] as const) {
   @ValidateNested({ each: true })
   @Type(() => BackupEventDto)
   events?: BackupEventDto[];
+
+  /** The AI conversation about the job, oldest first. */
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => BackupChatMessageDto)
+  chat?: BackupChatMessageDto[];
 }
 
 export class BackupDto {

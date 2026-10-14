@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { asc, eq } from 'drizzle-orm';
 import { DATABASE, type Database, type Executor } from '../database/database.module.js';
-import { jobEvents, jobHunts, jobs, type Job } from '../database/schema.js';
+import { jobChatMessages, jobEvents, jobHunts, jobs, type Job } from '../database/schema.js';
 import { HuntsService } from '../hunts/hunts.service.js';
 import { BACKUP_VERSION, type BackupDto, type BackupHuntDto } from './backup.dto.js';
 import { toCsv } from './csv.js';
@@ -42,7 +42,7 @@ export class BackupService {
   ) {}
 
   async exportJson(userId: number) {
-    const [allHunts, allJobs, allEvents] = await Promise.all([
+    const [allHunts, allJobs, allEvents, allMessages] = await Promise.all([
       this.db.select().from(jobHunts).where(eq(jobHunts.userId, userId)).orderBy(asc(jobHunts.id)),
       this.db.select().from(jobs).where(eq(jobs.userId, userId)).orderBy(asc(jobs.id)),
       this.db
@@ -52,6 +52,13 @@ export class BackupService {
         .where(eq(jobs.userId, userId))
         .orderBy(asc(jobEvents.occurredAt))
         .then((rows) => rows.map((row) => row.event)),
+      this.db
+        .select({ message: jobChatMessages })
+        .from(jobChatMessages)
+        .innerJoin(jobs, eq(jobs.id, jobChatMessages.jobId))
+        .where(eq(jobs.userId, userId))
+        .orderBy(asc(jobChatMessages.id))
+        .then((rows) => rows.map((row) => row.message)),
     ]);
 
     return {
@@ -65,6 +72,9 @@ export class BackupService {
         events: allEvents
           .filter((event) => event.jobId === id)
           .map(({ id: _id, jobId: _jobId, createdAt: _createdAt, ...event }) => event),
+        chat: allMessages
+          .filter((message) => message.jobId === id)
+          .map(({ role, content, createdAt }) => ({ role, content, createdAt })),
       })),
     };
   }
@@ -98,19 +108,28 @@ export class BackupService {
         return huntIds.get(index)!;
       };
 
-      for (const { events = [], createdAt, hunt, ...job } of backup.jobs) {
+      for (const { events = [], chat = [], createdAt, hunt, ...job } of backup.jobs) {
         const huntId = await huntIdFor(hunt);
         const [inserted] = await tx
           .insert(jobs)
           .values({ ...job, userId, huntId, ...(createdAt && { createdAt: new Date(createdAt) }) })
           .returning({ id: jobs.id });
-        if (events.length === 0) continue;
-        const rows = events.map((event) => ({
-          ...event,
-          jobId: inserted.id,
-          occurredAt: new Date(event.occurredAt),
-        }));
-        await tx.insert(jobEvents).values(rows);
+        if (events.length > 0) {
+          const rows = events.map((event) => ({
+            ...event,
+            jobId: inserted.id,
+            occurredAt: new Date(event.occurredAt),
+          }));
+          await tx.insert(jobEvents).values(rows);
+        }
+        // Inserted one at a time so the conversation keeps its order.
+        for (const { createdAt: sentAt, ...message } of chat) {
+          await tx.insert(jobChatMessages).values({
+            ...message,
+            jobId: inserted.id,
+            ...(sentAt && { createdAt: new Date(sentAt) }),
+          });
+        }
       }
     });
     return { imported: backup.jobs.length };

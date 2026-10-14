@@ -1,6 +1,7 @@
 import {
   DEFAULT_MAX_TOKENS,
   postJson,
+  toMessages,
   type AiProvider,
   type CompletionRequest,
 } from './ai-provider.js';
@@ -18,12 +19,16 @@ export class GeminiProvider implements AiProvider {
     private readonly baseUrl: string = GEMINI_BASE_URL,
   ) {}
 
-  async complete({ system, prompt, maxTokens }: CompletionRequest): Promise<string> {
+  async complete(request: CompletionRequest): Promise<string> {
+    const { system, maxTokens } = request;
     const response = await postJson<GenerateContentResponse>(
       `${this.baseUrl.replace(/\/+$/, '')}/models/${encodeURIComponent(this.model)}:generateContent`,
       {
         systemInstruction: { parts: [{ text: system }] },
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        contents: toMessages(request).map(({ role, content }) => ({
+          role: role === 'assistant' ? 'model' : 'user',
+          parts: [{ text: content }],
+        })),
         generationConfig: { maxOutputTokens: maxTokens ?? DEFAULT_MAX_TOKENS },
       },
       { 'x-goog-api-key': this.apiKey },

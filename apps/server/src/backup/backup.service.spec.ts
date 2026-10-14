@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { eq } from 'drizzle-orm';
+import { jobChatMessages } from '../database/schema.js';
 import { createTestDatabase, type TestDatabase } from '../database/testing.js';
 import { HuntsService } from '../hunts/hunts.service.js';
 import { JobsService } from '../jobs/jobs.service.js';
@@ -92,6 +94,37 @@ describe('BackupService', () => {
     await hunts.create(bob, { name: "Bob's search" });
     await backup.import(bob, JSON.parse(JSON.stringify(exported)) as BackupDto);
     expect(await overview(bob)).toEqual(["Bob's search: Globex", 'Old (finished): Acme']);
+  });
+
+  it('round-trips the AI conversation about each job', async () => {
+    const job = await jobs.create(alice, { title: 'Engineer', company: 'Acme' });
+    await database.db
+      .insert(jobChatMessages)
+      .values({ jobId: job.id, role: 'user', content: 'Hi' });
+    await database.db
+      .insert(jobChatMessages)
+      .values({ jobId: job.id, role: 'assistant', content: 'Hello' });
+    await jobs.create(alice, { title: 'Designer', company: 'Globex' });
+
+    const exported = await backup.exportJson(alice);
+    expect(exported.jobs.map((job) => job.chat)).toEqual([
+      [
+        { role: 'user', content: 'Hi', createdAt: expect.any(Date) },
+        { role: 'assistant', content: 'Hello', createdAt: expect.any(Date) },
+      ],
+      [],
+    ]);
+
+    await backup.import(bob, JSON.parse(JSON.stringify(exported)) as BackupDto);
+    const bobsJob = (await jobs.list(bob, {})).find((job) => job.company === 'Acme')!;
+    const copied = await database.db
+      .select()
+      .from(jobChatMessages)
+      .where(eq(jobChatMessages.jobId, bobsJob.id));
+    expect(copied.map(({ role, content }) => ({ role, content }))).toEqual([
+      { role: 'user', content: 'Hi' },
+      { role: 'assistant', content: 'Hello' },
+    ]);
   });
 
   it('names the hunt in the CSV export', async () => {

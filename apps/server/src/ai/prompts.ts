@@ -12,13 +12,13 @@ export const AI_TASK_FIELDS = {
   'interview-prep': 'interviewPrep',
 } as const satisfies Record<AiTask, keyof Job>;
 
-const SYSTEM_PROMPT = `You are an assistant inside Jobify, a personal job application tracker. \
+export const SYSTEM_PROMPT = `You are an assistant inside Jobify, a personal job application tracker. \
 You help one job seeker understand postings and prepare applications. \
 Be specific to the posting in front of you, stay factual, and never invent details about the \
 company or the candidate. Respond with GitHub-flavored Markdown unless told otherwise, and do \
 not wrap the whole response in a code block.`;
 
-function describeJob(job: Job): string {
+export function describeJob(job: Job): string {
   const facts = [
     `Title: ${job.title}`,
     `Company: ${job.company}`,
@@ -32,7 +32,7 @@ function describeJob(job: Job): string {
   return `<job>\n${facts.join('\n')}\n\n<description>\n${job.description?.trim() || '(no description saved)'}\n</description>\n</job>`;
 }
 
-function describeProfile(profile: UserProfile): string | undefined {
+export function describeProfile(profile: UserProfile): string | undefined {
   const parts = [
     profile.name && `Name: ${profile.name}`,
     profile.headline && `Headline: ${profile.headline}`,

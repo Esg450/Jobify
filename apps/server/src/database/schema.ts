@@ -156,6 +156,24 @@ export const jobEvents = sqliteTable(
   (table) => [index('job_events_job_idx').on(table.jobId)],
 );
 
+export const CHAT_ROLES = ['user', 'assistant'] as const;
+export type ChatRole = (typeof CHAT_ROLES)[number];
+
+/** The conversation a user has with the AI about one job, oldest first. */
+export const jobChatMessages = sqliteTable(
+  'job_chat_messages',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    jobId: integer('job_id')
+      .notNull()
+      .references(() => jobs.id, { onDelete: 'cascade' }),
+    role: text('role', { enum: CHAT_ROLES }).notNull(),
+    content: text('content').notNull(),
+    createdAt: timestamps.createdAt,
+  },
+  (table) => [index('job_chat_messages_job_idx').on(table.jobId)],
+);
+
 export const settings = sqliteTable('settings', {
   key: text('key').primaryKey(),
   value: text('value', { mode: 'json' }).$type<unknown>().notNull(),
@@ -167,3 +185,4 @@ export type Job = typeof jobs.$inferSelect;
 export type NewJob = typeof jobs.$inferInsert;
 export type JobEvent = typeof jobEvents.$inferSelect;
 export type NewJobEvent = typeof jobEvents.$inferInsert;
+export type JobChatMessage = typeof jobChatMessages.$inferSelect;

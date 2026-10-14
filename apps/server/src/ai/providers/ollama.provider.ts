@@ -1,4 +1,4 @@
-import { postJson, type AiProvider, type CompletionRequest } from './ai-provider.js';
+import { postJson, toMessages, type AiProvider, type CompletionRequest } from './ai-provider.js';
 
 interface OllamaChatResponse {
   message?: { content?: string };
@@ -13,16 +13,13 @@ export class OllamaProvider implements AiProvider {
     private readonly baseUrl: string = OLLAMA_BASE_URL,
   ) {}
 
-  async complete({ system, prompt }: CompletionRequest): Promise<string> {
+  async complete(request: CompletionRequest): Promise<string> {
     const response = await postJson<OllamaChatResponse>(
       `${this.baseUrl.replace(/\/+$/, '')}/api/chat`,
       {
         model: this.model,
         stream: false,
-        messages: [
-          { role: 'system', content: system },
-          { role: 'user', content: prompt },
-        ],
+        messages: [{ role: 'system', content: request.system }, ...toMessages(request)],
       },
     );
     return response.message?.content?.trim() ?? '';

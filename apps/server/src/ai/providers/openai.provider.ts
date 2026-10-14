@@ -1,6 +1,7 @@
 import {
   DEFAULT_MAX_TOKENS,
   postJson,
+  toMessages,
   type AiProvider,
   type CompletionRequest,
 } from './ai-provider.js';
@@ -22,16 +23,14 @@ export class OpenAiProvider implements AiProvider {
     private readonly baseUrl: string = OPENAI_BASE_URL,
   ) {}
 
-  async complete({ system, prompt, maxTokens }: CompletionRequest): Promise<string> {
+  async complete(request: CompletionRequest): Promise<string> {
+    const { system, maxTokens } = request;
     const response = await postJson<ChatCompletionResponse>(
       `${this.baseUrl.replace(/\/+$/, '')}/chat/completions`,
       {
         model: this.model,
         max_completion_tokens: maxTokens ?? DEFAULT_MAX_TOKENS,
-        messages: [
-          { role: 'system', content: system },
-          { role: 'user', content: prompt },
-        ],
+        messages: [{ role: 'system', content: system }, ...toMessages(request)],
       },
       this.apiKey ? { Authorization: `Bearer ${this.apiKey}` } : {},
     );

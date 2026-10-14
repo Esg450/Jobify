@@ -1,9 +1,10 @@
-import { Check, Copy, RefreshCw, Sparkles } from 'lucide-react';
+import { Check, Copy, MessageSquare, RefreshCw, Sparkles } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { useAiSettings, useCurrentUser, useRunAiTask } from '../api/hooks';
 import type { AiTask, Job } from '../api/types';
 import { AI_TASK_LABELS } from '../lib/labels';
+import { JobChat } from './JobChat';
 import { Markdown } from './Markdown';
 import { Button } from './ui/Button';
 import { Alert, EmptyState, errorText } from './ui/feedback';
@@ -30,7 +31,9 @@ export function AiPanel({ job }: { job: Job }) {
   const { data: settings, isPending } = useAiSettings();
   const isAdmin = useCurrentUser().role === 'admin';
   const runTask = useRunAiTask(job.id);
-  const [selected, setSelected] = useState<(typeof OUTPUT_TASKS)[number]['task']>('summary');
+  const [selected, setSelected] = useState<(typeof OUTPUT_TASKS)[number]['task'] | 'chat'>(
+    'summary',
+  );
 
   if (isPending) return null;
   if (!settings?.configured) {
@@ -57,25 +60,49 @@ export function AiPanel({ job }: { job: Job }) {
     );
   }
 
+  const tabs = (
+    <div className="flex flex-wrap gap-2">
+      {OUTPUT_TASKS.map(({ task, field }) => (
+        <Button
+          key={task}
+          size="sm"
+          variant={selected === task ? 'primary' : 'secondary'}
+          onClick={() => setSelected(task)}
+        >
+          {AI_TASK_LABELS[task].title}
+          {job[field] && <Check className="size-3.5" aria-label="generated" />}
+        </Button>
+      ))}
+      <Button
+        size="sm"
+        variant={selected === 'chat' ? 'primary' : 'secondary'}
+        icon={<MessageSquare className="size-3.5" />}
+        onClick={() => setSelected('chat')}
+      >
+        Ask
+      </Button>
+    </div>
+  );
+
+  if (selected === 'chat') {
+    return (
+      <div className="flex flex-col gap-4">
+        {tabs}
+        {!job.description && (
+          <Alert>Add a job description first; the AI works from the posting.</Alert>
+        )}
+        <JobChat job={job} />
+      </div>
+    );
+  }
+
   const current = OUTPUT_TASKS.find(({ task }) => task === selected)!;
   const output = job[current.field] as string | null;
   const running = runTask.isPending && runTask.variables === selected;
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap gap-2">
-        {OUTPUT_TASKS.map(({ task, field }) => (
-          <Button
-            key={task}
-            size="sm"
-            variant={selected === task ? 'primary' : 'secondary'}
-            onClick={() => setSelected(task)}
-          >
-            {AI_TASK_LABELS[task].title}
-            {job[field] && <Check className="size-3.5" aria-label="generated" />}
-          </Button>
-        ))}
-      </div>
+      {tabs}
 
       {!job.description && (
         <Alert>Add a job description first; the AI works from the posting.</Alert>
