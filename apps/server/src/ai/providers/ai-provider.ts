@@ -1,9 +1,22 @@
 import { describeFetchError } from '../../common/errors.js';
 
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
 export interface CompletionRequest {
   system: string;
+  /** The final user turn. */
   prompt: string;
+  /** Earlier turns of a conversation, oldest first, sent before `prompt`. */
+  history?: ChatMessage[];
   maxTokens?: number;
+}
+
+/** The conversation as a flat list of turns, ending with the prompt. */
+export function toMessages({ history = [], prompt }: CompletionRequest): ChatMessage[] {
+  return [...history, { role: 'user', content: prompt }];
 }
 
 /** A text-generation backend. Implementations should throw AiProviderError on failure. */

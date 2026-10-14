@@ -8,6 +8,7 @@ import type {
   AiTask,
   AiTestInput,
   AuthStatus,
+  ChatMessage,
   EventInput,
   HuntInput,
   HuntSummary,
@@ -48,6 +49,7 @@ export const queryKeys = {
   aiSettings: ['ai', 'settings'] as const,
   aiProviders: ['ai', 'providers'] as const,
   searchSettings: ['search', 'settings'] as const,
+  jobChat: (jobId: number) => ['ai', 'chat', jobId] as const,
   profile: ['profile'] as const,
   preferences: ['preferences'] as const,
   importSites: ['import', 'sites'] as const,
@@ -452,6 +454,30 @@ export function useRunAiTask(jobId: number) {
   return useMutation({
     mutationFn: (task: AiTask) => api.post<Job>(`/ai/jobs/${jobId}/${task}`),
     onSuccess: changed,
+  });
+}
+
+export function useJobChat(jobId: number) {
+  return useQuery({
+    queryKey: queryKeys.jobChat(jobId),
+    queryFn: () => api.get<ChatMessage[]>(`/ai/jobs/${jobId}/chat`),
+  });
+}
+
+/** Sends a question; the server answers with the whole conversation. */
+export function useAskJobChat(jobId: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (message: string) => api.post<ChatMessage[]>(`/ai/jobs/${jobId}/chat`, { message }),
+    onSuccess: (messages) => queryClient.setQueryData(queryKeys.jobChat(jobId), messages),
+  });
+}
+
+export function useClearJobChat(jobId: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.delete(`/ai/jobs/${jobId}/chat`),
+    onSuccess: () => queryClient.setQueryData(queryKeys.jobChat(jobId), []),
   });
 }
 

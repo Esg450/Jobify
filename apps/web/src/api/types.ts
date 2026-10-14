@@ -370,6 +370,15 @@ export interface SearchCandidate {
   url?: string;
 }
 
+/** One turn of the AI conversation about a job. */
+export interface ChatMessage {
+  id: number;
+  jobId: number;
+  role: 'user' | 'assistant';
+  content: string;
+  createdAt: string;
+}
+
 export interface Profile {
   name: string;
   headline: string;

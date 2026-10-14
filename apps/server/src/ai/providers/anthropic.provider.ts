@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import {
   AiProviderError,
   DEFAULT_MAX_TOKENS,
+  toMessages,
   type AiProvider,
   type CompletionRequest,
 } from './ai-provider.js';
@@ -25,7 +26,8 @@ export class AnthropicProvider implements AiProvider {
     this.client = new Anthropic({ apiKey, baseURL: baseUrl || undefined });
   }
 
-  async complete({ system, prompt, maxTokens }: CompletionRequest): Promise<string> {
+  async complete(request: CompletionRequest): Promise<string> {
+    const { system, maxTokens } = request;
     const fallback = FALLBACK_MODELS.has(this.model)
       ? { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' as const }
       : {};
@@ -35,7 +37,7 @@ export class AnthropicProvider implements AiProvider {
         model: this.model,
         max_tokens: maxTokens ?? DEFAULT_MAX_TOKENS,
         system,
-        messages: [{ role: 'user', content: prompt }],
+        messages: toMessages(request),
         ...fallback,
       });
 
