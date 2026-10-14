@@ -1,4 +1,15 @@
-import { Check, ExternalLink, Plus, Search, Settings, Sparkles } from 'lucide-react';
+import {
+  Building2,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  ExternalLink,
+  MapPin,
+  Plus,
+  Search,
+  Settings,
+  Sparkles,
+} from 'lucide-react';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
 import {
@@ -23,16 +34,20 @@ import {
   type SearchSite,
   type SearchSuggestion,
 } from '../api/types';
+import { Detail } from '../components/Detail';
+import { Markdown } from '../components/Markdown';
 import { PageHeader } from '../components/PageHeader';
 import { StatusBadge } from '../components/StatusBadge';
 import { Button, ButtonLink } from '../components/ui/Button';
-import { Card } from '../components/ui/Card';
+import { Card, CardHeader } from '../components/ui/Card';
 import { Alert, EmptyState, errorText } from '../components/ui/feedback';
 import { Checkbox, Field, Input, Select } from '../components/ui/fields';
+import { Modal } from '../components/ui/Modal';
 import { PageSpinner } from '../components/ui/Spinner';
 import { cn } from '../lib/cn';
 import { formatDate, formatSalary } from '../lib/format';
-import { WORKPLACE_LABELS } from '../lib/labels';
+import { EMPLOYMENT_LABELS, WORKPLACE_LABELS } from '../lib/labels';
+import { SEARCH_SORTS, sortResults, type SearchSort } from '../lib/searchSort';
 
 const POSTED_WITHIN: { value: number | ''; label: string }[] = [
   { value: '', label: 'Any time' },
@@ -50,6 +65,7 @@ interface StoredSearch {
   query: SearchQuery;
   results: SearchResult[];
   warnings: string[];
+  sort: SearchSort;
 }
 
 function loadStored(): StoredSearch | null {
@@ -58,7 +74,12 @@ function loadStored(): StoredSearch | null {
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<StoredSearch>;
     if (!parsed.query || !Array.isArray(parsed.results)) return null;
-    return { query: parsed.query, results: parsed.results, warnings: parsed.warnings ?? [] };
+    return {
+      query: parsed.query,
+      results: parsed.results,
+      warnings: parsed.warnings ?? [],
+      sort: parsed.sort && parsed.sort in SEARCH_SORTS ? parsed.sort : 'relevance',
+    };
   } catch {
     return null;
   }
@@ -158,10 +179,20 @@ function SearchView({ settings }: { settings: SearchSettingsValues }) {
     );
   }, [stored, recheck]);
 
+  /** Changes the shown search and keeps the stored copy in step. */
+  const update = (change: (current: StoredSearch) => StoredSearch) =>
+    setFound((current) => {
+      if (!current) return current;
+      const next = change(current);
+      store(next);
+      return next;
+    });
+
   const run = (query: SearchQuery) =>
     search.mutate(query, {
       onSuccess: ({ results, warnings }) => {
-        const next = { query, results, warnings };
+        // Keep the sort the user picked for the previous search.
+        const next = { query, results, warnings, sort: found?.sort ?? 'relevance' };
         setFound(next);
         store(next);
       },
@@ -199,7 +230,20 @@ function SearchView({ settings }: { settings: SearchSettingsValues }) {
             </div>
           </Card>
         ) : found ? (
-          <Results results={found.results} warnings={found.warnings} />
+          <Results
+            results={found.results}
+            warnings={found.warnings}
+            sort={found.sort}
+            onSortChange={(sort) => update((current) => ({ ...current, sort }))}
+            onLoaded={(id, draft) =>
+              update((current) => ({
+                ...current,
+                results: current.results.map((result) =>
+                  result.id === id ? { ...result, draft, fullPosting: true } : result,
+                ),
+              }))
+            }
+          />
         ) : null}
       </div>
     </>
@@ -430,7 +474,20 @@ function SearchForm({
   );
 }
 
-function Results({ results, warnings }: { results: SearchResult[]; warnings: string[] }) {
+function Results({
+  results,
+  warnings,
+  sort,
+  onSortChange,
+  onLoaded,
+}: {
+  results: SearchResult[];
+  warnings: string[];
+  sort: SearchSort;
+  onSortChange: (sort: SearchSort) => void;
+  onLoaded: (id: string, draft: JobDraft) => void;
+}) {
+  const [openId, setOpenId] = useState<string | null>(null);
   if (results.length === 0) {
     return (
       <Card>
@@ -446,12 +503,32 @@ function Results({ results, warnings }: { results: SearchResult[]; warnings: str
       </Card>
     );
   }
+  const sorted = sortResults(results, sort);
+  const openIndex = sorted.findIndex((result) => result.id === openId);
   const saved = results.filter((result) => result.existing).length;
   return (
     <Card className="overflow-hidden">
       <div className="border-b border-zinc-200 px-5 py-3 text-sm text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
-        {results.length} {results.length === 1 ? 'posting' : 'postings'}
-        {saved > 0 && `, ${saved} already in your jobs`}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span>
+            {results.length} {results.length === 1 ? 'posting' : 'postings'}
+            {saved > 0 && `, ${saved} already in your jobs`}
+          </span>
+          <label className="flex items-center gap-2">
+            Sort by
+            <Select
+              value={sort}
+              onChange={(event) => onSortChange(event.target.value as SearchSort)}
+              className="w-auto py-1"
+            >
+              {Object.entries(SEARCH_SORTS).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </Select>
+          </label>
+        </div>
         {warnings.map((warning) => (
           <p key={warning} className="mt-1 text-xs text-amber-700 dark:text-amber-400">
             {warning}
@@ -459,10 +536,22 @@ function Results({ results, warnings }: { results: SearchResult[]; warnings: str
         ))}
       </div>
       <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
-        {results.map((result) => (
-          <ResultRow key={result.id} result={result} />
+        {sorted.map((result) => (
+          <ResultRow key={result.id} result={result} onOpen={() => setOpenId(result.id)} />
         ))}
       </ul>
+      {openIndex >= 0 && (
+        <ResultDetails
+          result={sorted[openIndex]}
+          position={`${openIndex + 1} of ${sorted.length}`}
+          onPrevious={openIndex > 0 ? () => setOpenId(sorted[openIndex - 1].id) : undefined}
+          onNext={
+            openIndex < sorted.length - 1 ? () => setOpenId(sorted[openIndex + 1].id) : undefined
+          }
+          onLoaded={onLoaded}
+          onClose={() => setOpenId(null)}
+        />
+      )}
     </Card>
   );
 }
@@ -478,16 +567,18 @@ function mergeDrafts(fromBoard: JobDraft, imported: JobDraft): JobDraft {
   return merged;
 }
 
-function ResultRow({ result }: { result: SearchResult }) {
-  const navigate = useNavigate();
-  const importJob = useImportJob();
-  const { draft, existing } = result;
-  const salary = formatSalary({
+function draftSalary(draft: JobDraft): string | null {
+  return formatSalary({
     salaryMin: draft.salaryMin ?? null,
     salaryMax: draft.salaryMax ?? null,
     salaryCurrency: draft.salaryCurrency ?? null,
     salaryPeriod: draft.salaryPeriod ?? null,
   });
+}
+
+function ResultRow({ result, onOpen }: { result: SearchResult; onOpen: () => void }) {
+  const { draft, existing } = result;
+  const salary = draftSalary(draft);
   const details = [
     draft.location,
     draft.workplaceType && WORKPLACE_LABELS[draft.workplaceType],
@@ -495,27 +586,27 @@ function ResultRow({ result }: { result: SearchResult }) {
     draft.postedOn && `Posted ${formatDate(draft.postedOn)}`,
   ].filter(Boolean);
 
-  /**
-   * Runs the posting through Jobify's own importers for a fuller description, then opens the
-   * Add job page. If the board blocks the fetch, the board's own details are used as they are.
-   */
-  const review = () => {
-    const open = (values: JobDraft) => navigate('/jobs/new', { state: { draft: values } });
-    if (!draft.url) return open(draft);
-    importJob.mutate(
-      { url: draft.url },
-      {
-        onSuccess: ({ draft: imported }) => open(mergeDrafts(draft, imported)),
-        onError: () => open(draft),
-      },
-    );
-  };
-
   return (
-    <li className={cn('flex flex-wrap items-start gap-3 px-5 py-4', existing && 'opacity-80')}>
+    <li
+      // The whole row opens the details; its own links and buttons keep doing their job.
+      onClick={(event) => {
+        if (!(event.target as HTMLElement).closest('a, button')) onOpen();
+      }}
+      className={cn(
+        'flex cursor-pointer flex-wrap items-start gap-3 px-5 py-4 hover:bg-zinc-50 dark:hover:bg-zinc-800/50',
+        existing && 'opacity-80',
+      )}
+    >
+      <CompanyLogo src={result.logoUrl} company={draft.company} />
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <p className="font-medium">{draft.title}</p>
+          <button
+            type="button"
+            onClick={onOpen}
+            className="text-left font-medium hover:text-indigo-600 hover:underline dark:hover:text-indigo-400"
+          >
+            {draft.title}
+          </button>
           <span className="rounded-md bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
             {draft.source ?? result.site}
           </span>
@@ -537,34 +628,251 @@ function ResultRow({ result }: { result: SearchResult }) {
         )}
       </div>
       <div className="flex items-center gap-2">
-        {draft.url && (
-          <a
-            href={draft.url}
-            target="_blank"
-            rel="noreferrer noopener"
-            title="Open the posting"
-            aria-label="Open the posting"
-            className="rounded-md p-2 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
-          >
-            <ExternalLink className="size-4" aria-hidden />
-          </a>
-        )}
-        {existing ? (
-          <ButtonLink to={`/jobs/${existing.id}`} size="sm">
-            View job
-          </ButtonLink>
-        ) : (
-          <Button
-            size="sm"
-            variant="primary"
-            icon={<Plus className="size-3.5" />}
-            loading={importJob.isPending}
-            onClick={review}
-          >
-            Import
-          </Button>
-        )}
+        <ResultActions result={result} />
       </div>
     </li>
+  );
+}
+
+/** The posting link plus Import (or View job when the user already has it). */
+function ResultActions({ result }: { result: SearchResult }) {
+  const navigate = useNavigate();
+  const importJob = useImportJob();
+  const { draft, existing } = result;
+
+  /**
+   * Runs the posting through Jobify's own importers for a fuller description, then opens the
+   * Add job page. If the board blocks the fetch, the board's own details are used as they are.
+   * A posting already loaded in the details view goes straight through.
+   */
+  const review = () => {
+    const open = (values: JobDraft) => navigate('/jobs/new', { state: { draft: values } });
+    if (!draft.url || result.fullPosting) return open(draft);
+    importJob.mutate(
+      { url: draft.url },
+      {
+        onSuccess: ({ draft: imported }) => open(mergeDrafts(draft, imported)),
+        onError: () => open(draft),
+      },
+    );
+  };
+
+  return (
+    <>
+      {draft.url && (
+        <a
+          href={draft.url}
+          target="_blank"
+          rel="noreferrer noopener"
+          title="Open the posting"
+          aria-label="Open the posting"
+          className="rounded-md p-2 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+        >
+          <ExternalLink className="size-4" aria-hidden />
+        </a>
+      )}
+      {existing ? (
+        <ButtonLink to={`/jobs/${existing.id}`} size="sm">
+          View job
+        </ButtonLink>
+      ) : (
+        <Button
+          size="sm"
+          variant="primary"
+          icon={<Plus className="size-3.5" />}
+          loading={importJob.isPending}
+          onClick={review}
+        >
+          Import
+        </Button>
+      )}
+    </>
+  );
+}
+
+/**
+ * A preview of the posting, laid out like the job page: description, then a Details card.
+ * Previous and next (also the arrow keys) step through the results in their sorted order.
+ */
+function ResultDetails({
+  result,
+  position,
+  onPrevious,
+  onNext,
+  onLoaded,
+  onClose,
+}: {
+  result: SearchResult;
+  position: string;
+  onPrevious?: () => void;
+  onNext?: () => void;
+  onLoaded: (id: string, draft: JobDraft) => void;
+  onClose: () => void;
+}) {
+  const { draft } = result;
+  const salary = draftSalary(draft);
+  const place = [draft.location, draft.workplaceType && WORKPLACE_LABELS[draft.workplaceType]]
+    .filter(Boolean)
+    .join(' · ');
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'ArrowLeft') onPrevious?.();
+      if (event.key === 'ArrowRight') onNext?.();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onPrevious, onNext]);
+
+  const step =
+    'rounded-md p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 disabled:opacity-40 disabled:hover:bg-transparent dark:hover:bg-zinc-800 dark:hover:text-zinc-100';
+
+  return (
+    <Modal
+      open
+      title={draft.title ?? 'Job'}
+      onClose={onClose}
+      className="max-w-5xl"
+      footer={<ResultActions result={result} />}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <CompanyLogo key={result.id} src={result.logoUrl} company={draft.company} />
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-zinc-500 dark:text-zinc-400">
+            <span className="flex items-center gap-1.5">
+              <Building2 className="size-4" aria-hidden />
+              {draft.company}
+            </span>
+            {place && (
+              <span className="flex items-center gap-1.5">
+                <MapPin className="size-4" aria-hidden />
+                {place}
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-1 text-sm text-zinc-500 dark:text-zinc-400">
+          <button
+            type="button"
+            className={step}
+            onClick={onPrevious}
+            disabled={!onPrevious}
+            aria-label="Previous result"
+            title="Previous result (←)"
+          >
+            <ChevronLeft className="size-4" aria-hidden />
+          </button>
+          <span className="tabular-nums">{position}</span>
+          <button
+            type="button"
+            className={step}
+            onClick={onNext}
+            disabled={!onNext}
+            aria-label="Next result"
+            title="Next result (→)"
+          >
+            <ChevronRight className="size-4" aria-hidden />
+          </button>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-6 lg:grid-cols-3">
+        <Card className="max-h-[60vh] min-w-0 overflow-y-auto p-5 lg:col-span-2">
+          {draft.description ? (
+            <Markdown>{draft.description}</Markdown>
+          ) : (
+            <LoadFullPosting key={result.id} result={result} onLoaded={onLoaded} />
+          )}
+        </Card>
+        <Card className="self-start">
+          <CardHeader title="Details" />
+          <dl className="divide-y divide-zinc-100 text-sm dark:divide-zinc-800">
+            {salary && <Detail label="Salary">{salary}</Detail>}
+            {draft.employmentType && (
+              <Detail label="Employment">{EMPLOYMENT_LABELS[draft.employmentType]}</Detail>
+            )}
+            <Detail label="Source">{draft.source ?? result.site}</Detail>
+            {draft.postedOn && <Detail label="Posted">{formatDate(draft.postedOn)}</Detail>}
+          </dl>
+        </Card>
+      </div>
+    </Modal>
+  );
+}
+
+/**
+ * Fetches the full posting through Jobify's importers for boards that send no description
+ * (LinkedIn without "fetch descriptions", Google). Nothing is saved to the user's jobs.
+ */
+function LoadFullPosting({
+  result,
+  onLoaded,
+}: {
+  result: SearchResult;
+  onLoaded: (id: string, draft: JobDraft) => void;
+}) {
+  const importJob = useImportJob();
+  const { draft } = result;
+  const url = draft.url;
+  if (!url) {
+    return (
+      <p className="text-sm text-zinc-500 dark:text-zinc-400">
+        {draft.source ?? 'The board'} did not send a description or a link for this result.
+      </p>
+    );
+  }
+  return (
+    <div className="flex flex-col items-start gap-3">
+      <p className="text-sm text-zinc-500 dark:text-zinc-400">
+        {draft.source ?? 'The board'} did not send a description with this result.
+      </p>
+      <Button
+        size="sm"
+        loading={importJob.isPending}
+        onClick={() =>
+          importJob.mutate(
+            { url },
+            {
+              onSuccess: ({ draft: imported }) => onLoaded(result.id, mergeDrafts(draft, imported)),
+            },
+          )
+        }
+      >
+        Load full posting
+      </Button>
+      {importJob.isError && <Alert>Could not load the posting: {errorText(importJob.error)}</Alert>}
+    </div>
+  );
+}
+
+/** The board's company logo, or the company's initial when there is none or it fails to load. */
+function CompanyLogo({ src, company }: { src?: string; company?: string }) {
+  const [failed, setFailed] = useState<boolean>(false);
+  const box =
+    'flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-md border border-zinc-200 bg-white dark:border-zinc-700';
+  if (src && !failed) {
+    return (
+      <div className={box}>
+        <img
+          src={src}
+          alt=""
+          loading="lazy"
+          referrerPolicy="no-referrer"
+          className="size-full object-contain"
+          onError={() => setFailed(true)}
+        />
+      </div>
+    );
+  }
+  return (
+    <div
+      className={cn(
+        box,
+        'bg-zinc-100 text-sm font-medium text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400',
+      )}
+      aria-hidden
+    >
+      {company?.trim().charAt(0).toUpperCase() || '?'}
+    </div>
   );
 }

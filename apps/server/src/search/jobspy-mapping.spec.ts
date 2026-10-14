@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { JobSpyPost } from './jobspy-client.js';
-import { postToDraft, siteLabel } from './jobspy-mapping.js';
+import { logoUrl, postToDraft, siteLabel } from './jobspy-mapping.js';
 
 const post: JobSpyPost = {
   id: 'in-123',
@@ -78,5 +78,24 @@ describe('siteLabel', () => {
     expect(siteLabel('linkedin')).toBe('LinkedIn');
     expect(siteLabel('monster')).toBe('monster');
     expect(siteLabel(null)).toBeUndefined();
+  });
+});
+
+describe('logoUrl', () => {
+  it('returns the company logo when the board sent one', () => {
+    expect(
+      logoUrl({
+        ...post,
+        company_logo: ' https://d2q79iu7y748jz.cloudfront.net/s/_squarelogo/acme.png ',
+      }),
+    ).toBe('https://d2q79iu7y748jz.cloudfront.net/s/_squarelogo/acme.png');
+  });
+
+  it('ignores missing, blank and non-web logos', () => {
+    expect(logoUrl(post)).toBeUndefined();
+    expect(logoUrl({ ...post, company_logo: null })).toBeUndefined();
+    expect(logoUrl({ ...post, company_logo: '  ' })).toBeUndefined();
+    expect(logoUrl({ ...post, company_logo: 'javascript:alert(1)' })).toBeUndefined();
+    expect(logoUrl({ ...post, company_logo: '/img/logo.png' })).toBeUndefined();
   });
 });

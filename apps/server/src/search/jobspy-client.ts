@@ -32,6 +32,8 @@ export interface JobSpyPost {
   max_amount: number | null;
   currency: string | null;
   description: string | null;
+  /** Filled by Indeed, Glassdoor and ZipRecruiter, and by LinkedIn when descriptions are fetched. */
+  company_logo?: string | null;
   [column: string]: unknown;
 }
 

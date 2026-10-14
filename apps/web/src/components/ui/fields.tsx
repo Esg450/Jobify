@@ -43,7 +43,7 @@ export function Textarea({ className, ...props }: TextareaHTMLAttributes<HTMLTex
 }
 
 export function Select({ className, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
-  return <select className={cn(CONTROL, 'pr-8', className)} {...props} />;
+  return <select className={cn(CONTROL, 'select-chevron pr-8', className)} {...props} />;
 }
 
 export function Checkbox({

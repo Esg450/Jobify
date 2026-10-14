@@ -347,7 +347,11 @@ export interface SearchResult {
   id: string;
   site: string;
   draft: JobDraft;
+  /** The company logo, when the board sent one. */
+  logoUrl?: string;
   existing: DuplicateJob | null;
+  /** Set on the web once the full posting was loaded through Import, so Import can skip it. */
+  fullPosting?: boolean;
 }
 
 export interface SearchResponse {

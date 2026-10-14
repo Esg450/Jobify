@@ -242,6 +242,7 @@ describe('SearchService', () => {
             job_url: 'https://www.indeed.com/viewjob?jk=2',
             title: 'Analytics Engineer',
             company: 'Initech',
+            company_logo: 'https://example.com/initech.png',
           }),
           post({ id: 'in-3', site: 'indeed', title: null }),
         ],
@@ -277,7 +278,12 @@ describe('SearchService', () => {
         draft: { title: 'Data Engineer', company: 'Globex', workplaceType: 'remote' },
         existing: { title: 'data engineer', company: 'GLOBEX' },
       });
-      expect(results[1]).toMatchObject({ id: 'in-2', existing: null });
+      expect(results[0].logoUrl).toBeUndefined();
+      expect(results[1]).toMatchObject({
+        id: 'in-2',
+        logoUrl: 'https://example.com/initech.png',
+        existing: null,
+      });
       expect(warnings).toEqual([]);
     });
 

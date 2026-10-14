@@ -1,5 +1,6 @@
 import { X } from 'lucide-react';
 import { useEffect, useRef, type ReactNode } from 'react';
+import { cn } from '../../lib/cn';
 
 interface ModalProps {
   open: boolean;
@@ -7,10 +8,12 @@ interface ModalProps {
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
+  /** Extra classes for the dialog, e.g. a wider `max-w-*`. */
+  className?: string;
 }
 
 /** A dialog built on the native <dialog> element, which traps focus and renders above the page. */
-export function Modal({ open, title, onClose, children, footer }: ModalProps) {
+export function Modal({ open, title, onClose, children, footer, className }: ModalProps) {
   const dialog = useRef<HTMLDialogElement>(null);
 
   // Keep the native dialog in step with `open` on every render, in case the browser closed it
@@ -33,7 +36,10 @@ export function Modal({ open, title, onClose, children, footer }: ModalProps) {
       }}
       onClose={onClose}
       onClick={(event) => event.target === dialog.current && onClose()}
-      className="m-auto w-[calc(100%-2rem)] max-w-lg rounded-xl bg-white p-0 text-zinc-900 shadow-xl ring-1 ring-zinc-200 backdrop:bg-zinc-950/40 backdrop:backdrop-blur-sm dark:bg-zinc-900 dark:text-zinc-100 dark:ring-zinc-800"
+      className={cn(
+        'm-auto w-[calc(100%-2rem)] max-w-lg rounded-xl bg-white p-0 text-zinc-900 shadow-xl ring-1 ring-zinc-200 backdrop:bg-zinc-950/40 backdrop:backdrop-blur-sm dark:bg-zinc-900 dark:text-zinc-100 dark:ring-zinc-800',
+        className,
+      )}
     >
       <div className="flex items-center justify-between border-b border-zinc-200 px-5 py-4 dark:border-zinc-800">
         <h2 className="text-base font-semibold">{title}</h2>
