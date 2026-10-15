@@ -1,6 +1,7 @@
 import {
   Building2,
   Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   ExternalLink,
@@ -8,6 +9,7 @@ import {
   Plus,
   Search,
   Settings,
+  SlidersHorizontal,
   Sparkles,
 } from 'lucide-react';
 import { useEffect, useState, type FormEvent } from 'react';
@@ -64,6 +66,7 @@ const POSTED_WITHIN: { value: number | ''; label: string }[] = [
 ];
 
 const RESULT_COUNTS = [10, 20, 50, 100];
+const DEFAULT_RESULT_COUNT = 20;
 
 /** The last search, kept for the session so coming back from Add job does not lose it. */
 const STORAGE_KEY = 'jobify:search';
@@ -313,13 +316,23 @@ function SearchForm({
   const [remote, setRemote] = useState(initial?.remote ?? false);
   const [hoursOld, setHoursOld] = useState<number | ''>(initial?.hoursOld ?? '');
   const [jobType, setJobType] = useState<SearchJobType | ''>(initial?.jobType ?? '');
-  const [limit, setLimit] = useState(initial?.limit ?? 20);
+  const [limit, setLimit] = useState(initial?.limit ?? DEFAULT_RESULT_COUNT);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const { data: ai } = useAiSettings();
   const suggest = useSuggestSearches();
   const suggestions = suggest.data?.suggestions ?? [];
 
   const toggleSite = (site: SearchSite, on: boolean) =>
     setSites((current) => (on ? [...current, site] : current.filter((s) => s !== site)));
+
+  /** How many hidden filters differ from the defaults, shown on the Filters button. */
+  const activeFilters = [
+    country.trim() !== '',
+    hoursOld !== '',
+    jobType !== '',
+    salary.min != null || salary.max != null || salary.hideUnlisted,
+    limit !== DEFAULT_RESULT_COUNT,
+  ].filter(Boolean).length;
 
   /** Puts a suggestion in the form. Nothing runs until the user presses Search. */
   const apply = (suggestion: SearchSuggestion) => {
@@ -345,8 +358,8 @@ function SearchForm({
   return (
     <Card className="p-5">
       <form onSubmit={submit} className="flex flex-col gap-4">
-        <div className="grid gap-4 md:grid-cols-[2fr_1fr_auto]">
-          <Field label="Keywords">
+        <div className="flex flex-col gap-3 md:flex-row md:items-end">
+          <Field label="Keywords" className="md:flex-[2]">
             {(id) => (
               <Input
                 id={id}
@@ -357,7 +370,7 @@ function SearchForm({
               />
             )}
           </Field>
-          <Field label="Location">
+          <Field label="Location" className="md:flex-1">
             {(id) => (
               <Input
                 id={id}
@@ -367,17 +380,36 @@ function SearchForm({
               />
             )}
           </Field>
-          <Field label="Country" hint="For Indeed and Glassdoor">
-            {(id) => (
-              <Input
-                id={id}
-                placeholder={settings.country || 'USA'}
-                className="md:w-28"
-                value={country}
-                onChange={(event) => setCountry(event.target.value)}
+          <div className="flex gap-2">
+            <Button
+              icon={<SlidersHorizontal className="size-4" />}
+              aria-expanded={filtersOpen}
+              aria-controls="search-filters"
+              onClick={() => setFiltersOpen((open) => !open)}
+              className="flex-1"
+            >
+              Filters
+              {activeFilters > 0 && (
+                <span className="rounded-full bg-indigo-100 px-1.5 text-xs text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
+                  {activeFilters}
+                </span>
+              )}
+              <ChevronDown
+                className={cn('size-4 transition-transform', filtersOpen && 'rotate-180')}
+                aria-hidden
               />
-            )}
-          </Field>
+            </Button>
+            <Button
+              type="submit"
+              variant="primary"
+              icon={<Search className="size-4" />}
+              loading={searching}
+              disabled={sites.length === 0}
+              className="flex-1"
+            >
+              Search
+            </Button>
+          </div>
         </div>
 
         <fieldset>
@@ -395,58 +427,6 @@ function SearchForm({
             ))}
           </div>
         </fieldset>
-
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Field label="Posted">
-            {(id) => (
-              <Select
-                id={id}
-                value={hoursOld}
-                onChange={(event) =>
-                  setHoursOld(event.target.value ? Number(event.target.value) : '')
-                }
-              >
-                {POSTED_WITHIN.map(({ value, label }) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </Select>
-            )}
-          </Field>
-          <Field label="Job type">
-            {(id) => (
-              <Select
-                id={id}
-                value={jobType}
-                onChange={(event) => setJobType(event.target.value as SearchJobType | '')}
-              >
-                <option value="">Any</option>
-                {SEARCH_JOB_TYPES.map((type) => (
-                  <option key={type} value={type}>
-                    {SEARCH_JOB_TYPE_LABELS[type]}
-                  </option>
-                ))}
-              </Select>
-            )}
-          </Field>
-          <SalaryField value={salary} onChange={onSalaryChange} />
-          <Field label="Results per board">
-            {(id) => (
-              <Select
-                id={id}
-                value={limit}
-                onChange={(event) => setLimit(Number(event.target.value))}
-              >
-                {RESULT_COUNTS.map((count) => (
-                  <option key={count} value={count}>
-                    {count}
-                  </option>
-                ))}
-              </Select>
-            )}
-          </Field>
-        </div>
 
         {suggest.isError && <Alert>{errorText(suggest.error)}</Alert>}
         {suggestions.length > 0 && (
@@ -479,47 +459,96 @@ function SearchForm({
           </div>
         )}
 
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-4">
-            <Checkbox
-              label="Remote only"
-              checked={remote}
-              onChange={(event) => setRemote(event.target.checked)}
-            />
-            <Checkbox
-              label="Hide postings without pay"
-              checked={salary.hideUnlisted}
-              onChange={(event) =>
-                onSalaryChange({ ...salary, hideUnlisted: event.target.checked })
+        <div className="flex flex-wrap items-center gap-4">
+          <Checkbox
+            label="Remote only"
+            checked={remote}
+            onChange={(event) => setRemote(event.target.checked)}
+          />
+          {ai?.configured && (
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={<Sparkles className="size-3.5" />}
+              loading={suggest.isPending}
+              title="Fill in the search from your profile (Settings, Account). You can change it before searching."
+              onClick={() =>
+                suggest.mutate(undefined, {
+                  onSuccess: ({ suggestions: [best] }) => best && apply(best),
+                })
               }
-            />
-            {ai?.configured && (
-              <Button
-                variant="ghost"
-                size="sm"
-                icon={<Sparkles className="size-3.5" />}
-                loading={suggest.isPending}
-                title="Fill in the search from your profile (Settings, Account). You can change it before searching."
-                onClick={() =>
-                  suggest.mutate(undefined, {
-                    onSuccess: ({ suggestions: [best] }) => best && apply(best),
-                  })
-                }
-              >
-                Suggest from my profile
-              </Button>
-            )}
-          </div>
-          <Button
-            type="submit"
-            variant="primary"
-            icon={<Search className="size-4" />}
-            loading={searching}
-            disabled={sites.length === 0}
-          >
-            Search
-          </Button>
+            >
+              Suggest from my profile
+            </Button>
+          )}
         </div>
+
+        {filtersOpen && (
+          <div
+            id="search-filters"
+            className="grid gap-4 border-t border-zinc-200 pt-4 sm:grid-cols-2 lg:grid-cols-4 dark:border-zinc-800"
+          >
+            <Field label="Posted">
+              {(id) => (
+                <Select
+                  id={id}
+                  value={hoursOld}
+                  onChange={(event) =>
+                    setHoursOld(event.target.value ? Number(event.target.value) : '')
+                  }
+                >
+                  {POSTED_WITHIN.map(({ value, label }) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </Select>
+              )}
+            </Field>
+            <Field label="Job type">
+              {(id) => (
+                <Select
+                  id={id}
+                  value={jobType}
+                  onChange={(event) => setJobType(event.target.value as SearchJobType | '')}
+                >
+                  <option value="">Any</option>
+                  {SEARCH_JOB_TYPES.map((type) => (
+                    <option key={type} value={type}>
+                      {SEARCH_JOB_TYPE_LABELS[type]}
+                    </option>
+                  ))}
+                </Select>
+              )}
+            </Field>
+            <SalaryField value={salary} onChange={onSalaryChange} />
+            <Field label="Country" hint="For Indeed and Glassdoor">
+              {(id) => (
+                <Input
+                  id={id}
+                  placeholder={settings.country || 'USA'}
+                  value={country}
+                  onChange={(event) => setCountry(event.target.value)}
+                />
+              )}
+            </Field>
+            <Field label="Results per board">
+              {(id) => (
+                <Select
+                  id={id}
+                  value={limit}
+                  onChange={(event) => setLimit(Number(event.target.value))}
+                >
+                  {RESULT_COUNTS.map((count) => (
+                    <option key={count} value={count}>
+                      {count}
+                    </option>
+                  ))}
+                </Select>
+              )}
+            </Field>
+          </div>
+        )}
       </form>
     </Card>
   );
@@ -640,7 +669,9 @@ function SalaryField({
   const choose = (choice: string) => {
     setCustom(choice === 'custom');
     if (choice === 'custom') return;
-    onChange({ ...value, min: choice ? Number(choice) : undefined, max: undefined });
+    // "Any" clears the whole pay filter, so nothing stays hidden out of sight.
+    if (!choice) return onChange(NO_SALARY_FILTER);
+    onChange({ ...value, min: Number(choice), max: undefined });
   };
 
   return (
@@ -683,6 +714,13 @@ function SalaryField({
               />
               <span className="shrink-0">k/yr</span>
             </div>
+          )}
+          {(custom || value.min != null) && (
+            <Checkbox
+              label="Hide postings without pay"
+              checked={value.hideUnlisted}
+              onChange={(event) => onChange({ ...value, hideUnlisted: event.target.checked })}
+            />
           )}
         </div>
       )}
