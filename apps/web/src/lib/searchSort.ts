@@ -17,10 +17,34 @@ const PER_YEAR: Record<SalaryPeriod, number> = {
   hour: 2080,
 };
 
+/** The posting's pay range per year, or undefined when it lists no pay. */
+function yearlyRange(draft: JobDraft): { low: number; high: number } | undefined {
+  const low = draft.salaryMin ?? draft.salaryMax;
+  const high = draft.salaryMax ?? draft.salaryMin;
+  if (low == null || high == null) return undefined;
+  const perYear = PER_YEAR[draft.salaryPeriod ?? 'year'];
+  return { low: low * perYear, high: high * perYear };
+}
+
 function yearlyPay(draft: JobDraft): number | undefined {
-  const amount = draft.salaryMax ?? draft.salaryMin;
-  if (amount == null) return undefined;
-  return amount * PER_YEAR[draft.salaryPeriod ?? 'year'];
+  return yearlyRange(draft)?.high;
+}
+
+/** Yearly pay bounds; postings whose range overlaps them are kept. */
+export interface SalaryFilter {
+  min?: number;
+  max?: number;
+  hideUnlisted: boolean;
+}
+
+export function filterBySalary(results: SearchResult[], filter: SalaryFilter): SearchResult[] {
+  return results.filter(({ draft }) => {
+    const range = yearlyRange(draft);
+    if (!range) return !filter.hideUnlisted;
+    if (filter.min != null && range.high < filter.min) return false;
+    if (filter.max != null && range.low > filter.max) return false;
+    return true;
+  });
 }
 
 /** Larger values first; missing values always go last. */

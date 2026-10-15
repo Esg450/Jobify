@@ -47,7 +47,13 @@ import { PageSpinner } from '../components/ui/Spinner';
 import { cn } from '../lib/cn';
 import { formatDate, formatSalary } from '../lib/format';
 import { EMPLOYMENT_LABELS, WORKPLACE_LABELS } from '../lib/labels';
-import { SEARCH_SORTS, sortResults, type SearchSort } from '../lib/searchSort';
+import {
+  filterBySalary,
+  SEARCH_SORTS,
+  sortResults,
+  type SalaryFilter,
+  type SearchSort,
+} from '../lib/searchSort';
 
 const POSTED_WITHIN: { value: number | ''; label: string }[] = [
   { value: '', label: 'Any time' },
@@ -91,6 +97,32 @@ function store(search: StoredSearch | null) {
     else sessionStorage.removeItem(STORAGE_KEY);
   } catch {
     // Storage may be unavailable; the results still show for this page view.
+  }
+}
+
+/** The pay filter, kept for the session on its own so it applies before the first search. */
+const SALARY_STORAGE_KEY = 'jobify:search-salary';
+const NO_SALARY_FILTER: SalaryFilter = { hideUnlisted: false };
+
+/** Minimum yearly pay presets; anything else is a custom range. */
+const SALARY_PRESETS = [50_000, 75_000, 100_000, 125_000, 150_000, 200_000];
+
+function loadSalary(): SalaryFilter {
+  try {
+    const raw = sessionStorage.getItem(SALARY_STORAGE_KEY);
+    return raw
+      ? { ...NO_SALARY_FILTER, ...(JSON.parse(raw) as Partial<SalaryFilter>) }
+      : NO_SALARY_FILTER;
+  } catch {
+    return NO_SALARY_FILTER;
+  }
+}
+
+function storeSalary(salary: SalaryFilter) {
+  try {
+    sessionStorage.setItem(SALARY_STORAGE_KEY, JSON.stringify(salary));
+  } catch {
+    // Storage may be unavailable; the filter still applies for this page view.
   }
 }
 
@@ -148,6 +180,7 @@ function BetaBadge() {
 function SearchView({ settings }: { settings: SearchSettingsValues }) {
   const [stored] = useState(loadStored);
   const [found, setFound] = useState<StoredSearch | null>(stored);
+  const [salary, setSalary] = useState<SalaryFilter>(loadSalary);
   const search = useSearchJobs();
   const check = useCheckSearchResults();
 
@@ -215,6 +248,11 @@ function SearchView({ settings }: { settings: SearchSettingsValues }) {
           settings={settings}
           searching={search.isPending}
           onSearch={run}
+          salary={salary}
+          onSalaryChange={(next) => {
+            setSalary(next);
+            storeSalary(next);
+          }}
         />
 
         {search.isError && <Alert>{errorText(search.error)}</Alert>}
@@ -235,6 +273,7 @@ function SearchView({ settings }: { settings: SearchSettingsValues }) {
             warnings={found.warnings}
             sort={found.sort}
             onSortChange={(sort) => update((current) => ({ ...current, sort }))}
+            salary={salary}
             onLoaded={(id, draft) =>
               update((current) => ({
                 ...current,
@@ -255,11 +294,15 @@ function SearchForm({
   settings,
   searching,
   onSearch,
+  salary,
+  onSalaryChange,
 }: {
   initial?: SearchQuery;
   settings: SearchSettingsValues;
   searching: boolean;
   onSearch: (query: SearchQuery) => void;
+  salary: SalaryFilter;
+  onSalaryChange: (salary: SalaryFilter) => void;
 }) {
   const [terms, setTerms] = useState(initial?.terms ?? '');
   const [location, setLocation] = useState(initial?.location ?? '');
@@ -353,7 +396,7 @@ function SearchForm({
           </div>
         </fieldset>
 
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Field label="Posted">
             {(id) => (
               <Select
@@ -387,6 +430,7 @@ function SearchForm({
               </Select>
             )}
           </Field>
+          <SalaryField value={salary} onChange={onSalaryChange} />
           <Field label="Results per board">
             {(id) => (
               <Select
@@ -442,6 +486,13 @@ function SearchForm({
               checked={remote}
               onChange={(event) => setRemote(event.target.checked)}
             />
+            <Checkbox
+              label="Hide postings without pay"
+              checked={salary.hideUnlisted}
+              onChange={(event) =>
+                onSalaryChange({ ...salary, hideUnlisted: event.target.checked })
+              }
+            />
             {ai?.configured && (
               <Button
                 variant="ghost"
@@ -479,12 +530,14 @@ function Results({
   warnings,
   sort,
   onSortChange,
+  salary,
   onLoaded,
 }: {
   results: SearchResult[];
   warnings: string[];
   sort: SearchSort;
   onSortChange: (sort: SearchSort) => void;
+  salary: SalaryFilter;
   onLoaded: (id: string, draft: JobDraft) => void;
 }) {
   const [openId, setOpenId] = useState<string | null>(null);
@@ -503,7 +556,7 @@ function Results({
       </Card>
     );
   }
-  const sorted = sortResults(results, sort);
+  const sorted = sortResults(filterBySalary(results, salary), sort);
   const openIndex = sorted.findIndex((result) => result.id === openId);
   const saved = results.filter((result) => result.existing).length;
   return (
@@ -511,6 +564,7 @@ function Results({
       <div className="border-b border-zinc-200 px-5 py-3 text-sm text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <span>
+            {sorted.length < results.length && `${sorted.length} of `}
             {results.length} {results.length === 1 ? 'posting' : 'postings'}
             {saved > 0 && `, ${saved} already in your jobs`}
           </span>
@@ -535,6 +589,11 @@ function Results({
           </p>
         ))}
       </div>
+      {sorted.length === 0 && (
+        <p className="px-5 py-10 text-center text-sm text-zinc-500 dark:text-zinc-400">
+          No postings match this pay range.
+        </p>
+      )}
       <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
         {sorted.map((result) => (
           <ResultRow key={result.id} result={result} onOpen={() => setOpenId(result.id)} />
@@ -553,6 +612,81 @@ function Results({
         />
       )}
     </Card>
+  );
+}
+
+/**
+ * Salary filter: a minimum from the presets or a custom range, in thousands per year. It
+ * filters the results on screen (hourly and monthly pay is converted), so changing it never
+ * needs a new search.
+ */
+function SalaryField({
+  value,
+  onChange,
+}: {
+  value: SalaryFilter;
+  onChange: (value: SalaryFilter) => void;
+}) {
+  const isPreset = value.max == null && (value.min == null || SALARY_PRESETS.includes(value.min));
+  const [custom, setCustom] = useState(!isPreset);
+
+  const toThousands = (amount: number | undefined): string =>
+    amount == null ? '' : String(amount / 1000);
+  const fromThousands = (text: string): number | undefined => {
+    const amount = Number(text);
+    return text.trim() === '' || !Number.isFinite(amount) || amount < 0 ? undefined : amount * 1000;
+  };
+
+  const choose = (choice: string) => {
+    setCustom(choice === 'custom');
+    if (choice === 'custom') return;
+    onChange({ ...value, min: choice ? Number(choice) : undefined, max: undefined });
+  };
+
+  return (
+    <Field label="Salary">
+      {(id) => (
+        <div className="flex flex-col gap-2">
+          <Select
+            id={id}
+            value={custom ? 'custom' : (value.min ?? '')}
+            onChange={(event) => choose(event.target.value)}
+          >
+            <option value="">Any</option>
+            {SALARY_PRESETS.map((amount) => (
+              <option key={amount} value={amount}>
+                ${amount / 1000}k+ a year
+              </option>
+            ))}
+            <option value="custom">Custom range…</option>
+          </Select>
+          {custom && (
+            <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
+              <Input
+                type="number"
+                min={0}
+                inputMode="numeric"
+                placeholder="Min"
+                aria-label="Minimum yearly pay in thousands"
+                value={toThousands(value.min)}
+                onChange={(event) => onChange({ ...value, min: fromThousands(event.target.value) })}
+              />
+              <span aria-hidden>–</span>
+              <Input
+                type="number"
+                min={0}
+                inputMode="numeric"
+                placeholder="Max"
+                aria-label="Maximum yearly pay in thousands"
+                value={toThousands(value.max)}
+                onChange={(event) => onChange({ ...value, max: fromThousands(event.target.value) })}
+              />
+              <span className="shrink-0">k/yr</span>
+            </div>
+          )}
+        </div>
+      )}
+    </Field>
   );
 }
 

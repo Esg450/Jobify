@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { JobDraft, SearchResult } from '../api/types';
-import { sortResults } from './searchSort';
+import { filterBySalary, sortResults } from './searchSort';
 
 function result(id: string, draft: JobDraft): SearchResult {
   return { id, site: 'indeed', draft: { title: 'Engineer', ...draft }, existing: null };
@@ -41,5 +41,32 @@ describe('sortResults', () => {
   it('does not change the original list', () => {
     sortResults(results, 'company');
     expect(ids(results)).toEqual(['a', 'b', 'c', 'd']);
+  });
+});
+
+describe('filterBySalary', () => {
+  it('keeps everything when no filter is set', () => {
+    expect(ids(filterBySalary(results, { hideUnlisted: false }))).toEqual(['a', 'b', 'c', 'd']);
+  });
+
+  it('keeps postings whose yearly pay overlaps the range', () => {
+    // a ≈ 104k, c: 120k–150k, d: 108k; b has no pay and stays
+    expect(ids(filterBySalary(results, { min: 106000, hideUnlisted: false }))).toEqual([
+      'b',
+      'c',
+      'd',
+    ]);
+    expect(ids(filterBySalary(results, { max: 110000, hideUnlisted: false }))).toEqual([
+      'a',
+      'b',
+      'd',
+    ]);
+    expect(ids(filterBySalary(results, { min: 140000, max: 200000, hideUnlisted: false }))).toEqual(
+      ['b', 'c'],
+    );
+  });
+
+  it('can hide postings without pay', () => {
+    expect(ids(filterBySalary(results, { hideUnlisted: true }))).toEqual(['a', 'c', 'd']);
   });
 });
