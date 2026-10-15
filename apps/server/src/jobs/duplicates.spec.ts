@@ -18,6 +18,13 @@ describe('normalizeJobUrl', () => {
     expect(normalizeJobUrl('https://acme.com/careers?gh_jid=7&utm_source=x')).toBe(
       'https://acme.com/careers?gh_jid=7',
     );
+    // Glassdoor (as returned by JobSpy) names the listing with `jl`.
+    expect(normalizeJobUrl('https://www.glassdoor.com/job-listing/j?jl=1009')).toBe(
+      'https://www.glassdoor.com/job-listing/j?jl=1009',
+    );
+    expect(normalizeJobUrl('https://www.glassdoor.com/job-listing/j?jl=1009')).not.toBe(
+      normalizeJobUrl('https://www.glassdoor.com/job-listing/j?jl=1010'),
+    );
     // Different ids on the same page are different postings; the same id in any order is not.
     expect(normalizeJobUrl('https://www.indeed.com/viewjob?jk=1')).not.toBe(
       normalizeJobUrl('https://www.indeed.com/viewjob?jk=2'),

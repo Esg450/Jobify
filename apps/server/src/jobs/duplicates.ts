@@ -7,11 +7,11 @@
 
 /**
  * Query parameters that identify the posting rather than track where the visitor came from.
- * Indeed (`jk`), LinkedIn search pages (`currentJobId`), embedded ATS postings (`gh_jid`,
- * `ashby_jid`) and many career sites put the job id in the query string, so dropping the whole
- * string would make every posting on those sites look the same.
+ * Indeed (`jk`), Glassdoor (`jl`), LinkedIn search pages (`currentJobId`), embedded ATS
+ * postings (`gh_jid`, `ashby_jid`) and many career sites put the job id in the query string, so
+ * dropping the whole string would make every posting on those sites look the same.
  */
-const ID_PARAMETERS = new Set(['jk', 'job', 'req', 'posting', 'p']);
+const ID_PARAMETERS = new Set(['jk', 'jl', 'job', 'req', 'posting', 'p']);
 /** Parameters that end in "id" but track the visitor, not the posting. */
 const TRACKING_PARAMETERS = new Set([
   'refid',
