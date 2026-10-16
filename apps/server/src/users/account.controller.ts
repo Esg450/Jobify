@@ -1,10 +1,31 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Patch, Put, Req } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Patch,
+  Post,
+  Put,
+  Req,
+  UploadedFile,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { CurrentUser, type AuthenticatedRequest } from '../auth/decorators.js';
 import { SessionsService } from '../auth/sessions.service.js';
 import { PreferencesDto } from './preferences.dto.js';
+import { RESUME_FILE_MAX_BYTES } from './profile.constants.js';
 import { ProfileDto } from './profile.dto.js';
+import { extractResumeText } from './resume-text.js';
 import { ChangePasswordDto, UpdateAccountDto } from './users.dto.js';
 import { UsersService, type PublicUser } from './users.service.js';
+
+/** What multer hands over for the uploaded resume; only the bytes matter. */
+interface UploadedResume {
+  buffer: Buffer;
+}
 
 /** The signed-in user's own account. */
 @Controller('account')
@@ -40,6 +61,22 @@ export class AccountController {
   @Put('profile')
   updateProfile(@CurrentUser() user: PublicUser, @Body() dto: ProfileDto) {
     return this.users.updateProfile(user.id, dto);
+  }
+
+  /**
+   * Reads the text out of an uploaded resume (PDF, Word or plain text) for the profile form.
+   * Nothing is saved: the file stays in memory only for this request, and the client puts the
+   * text in the resume field for the user to review and save.
+   */
+  @Post('profile/resume')
+  @HttpCode(HttpStatus.OK)
+  @UseInterceptors(
+    // Multer's default storage keeps the file in memory; it is never written to disk.
+    FileInterceptor('file', { limits: { fileSize: RESUME_FILE_MAX_BYTES, files: 1, fields: 0 } }),
+  )
+  parseResume(@UploadedFile() file?: UploadedResume) {
+    if (!file?.buffer?.length) throw new BadRequestException('Choose a file to upload.');
+    return extractResumeText(file.buffer);
   }
 
   @Get('preferences')

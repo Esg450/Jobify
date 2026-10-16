@@ -47,11 +47,16 @@ export async function request<T>(
   path: string,
   options: { body?: unknown; query?: Query } = {},
 ): Promise<T> {
+  // A FormData body is sent as multipart; the browser sets the boundary header itself.
+  const body =
+    options.body === undefined || options.body instanceof FormData
+      ? options.body
+      : JSON.stringify(options.body);
   const response = await fetch(buildUrl(path, options.query), {
     method,
     credentials: 'same-origin',
-    headers: options.body === undefined ? undefined : { 'Content-Type': 'application/json' },
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
+    headers: typeof body === 'string' ? { 'Content-Type': 'application/json' } : undefined,
+    body,
   });
 
   if (response.status === 401 && !path.startsWith('/auth')) onUnauthorized();
@@ -63,6 +68,8 @@ export async function request<T>(
 export const api = {
   get: <T>(path: string, query?: Query) => request<T>('GET', path, { query }),
   post: <T>(path: string, body?: unknown) => request<T>('POST', path, { body }),
+  /** Posts a file as multipart form data. */
+  upload: <T>(path: string, form: FormData) => request<T>('POST', path, { body: form }),
   put: <T>(path: string, body: unknown) => request<T>('PUT', path, { body }),
   patch: <T>(path: string, body: unknown) => request<T>('PATCH', path, { body }),
   delete: (path: string) => request<void>('DELETE', path),

@@ -1,7 +1,8 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Put } from '@nestjs/common';
 import { Type } from 'class-transformer';
-import { IsIn, IsInt } from 'class-validator';
+import { IsIn, IsInt, IsNotEmpty, IsString, MaxLength } from 'class-validator';
 import { AdminOnly, CurrentUser } from '../auth/decorators.js';
+import { RESUME_MAX_LENGTH } from '../users/profile.constants.js';
 import type { PublicUser } from '../users/users.service.js';
 import { AI_PROVIDERS, TestAiSettingsDto, UpdateAiSettingsDto } from './ai-settings.js';
 import { AiService } from './ai.service.js';
@@ -14,6 +15,13 @@ class RunTaskParams {
 
   @IsIn(AI_TASKS)
   task!: AiTask;
+}
+
+export class TidyResumeDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(RESUME_MAX_LENGTH)
+  text!: string;
 }
 
 @Controller('ai')
@@ -43,6 +51,13 @@ export class AiController {
   @HttpCode(HttpStatus.OK)
   test(@Body() dto: TestAiSettingsDto) {
     return this.ai.testConnection(dto);
+  }
+
+  /** Cleans up the layout of the resume text in the profile form. Nothing is saved. */
+  @Post('resume/tidy')
+  @HttpCode(HttpStatus.OK)
+  async tidyResume(@Body() dto: TidyResumeDto) {
+    return { text: await this.ai.tidyResume(dto.text) };
   }
 
   @Post('jobs/:id/:task')

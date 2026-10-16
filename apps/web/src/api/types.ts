@@ -390,6 +390,20 @@ export interface Profile {
   preferences: string;
 }
 
+/** Mirrors `users/profile.constants.ts` on the server. */
+export const RESUME_MAX_LENGTH = 50_000;
+export const RESUME_FILE_MAX_BYTES = 10 * 1024 * 1024;
+/** Narrows the file picker; the server decides by the file's bytes, not its name or type. */
+export const RESUME_FILE_ACCEPT =
+  '.pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain';
+
+/** `POST /account/profile/resume`: the text read out of an uploaded resume. Nothing is saved. */
+export interface ResumeUpload {
+  text: string;
+  format: 'pdf' | 'docx' | 'text';
+  truncated: boolean;
+}
+
 /** Dashboard cards in their default order. Mirrors `users/preferences.ts` on the server. */
 export const DASHBOARD_CARDS = [
   'active',
