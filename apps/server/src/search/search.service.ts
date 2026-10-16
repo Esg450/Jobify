@@ -16,7 +16,7 @@ import { JobsService, type DuplicateJob } from '../jobs/jobs.service.js';
 import { SettingsService } from '../settings/settings.service.js';
 import { UsersService } from '../users/users.service.js';
 import { JobSpyClient, SearchProviderError, type JobSpyHealth } from './jobspy-client.js';
-import { postToDraft } from './jobspy-mapping.js';
+import { logoUrl, postToDraft } from './jobspy-mapping.js';
 import type { SearchCandidateDto } from './search-check.dto.js';
 import type { SearchJobsDto } from './search-query.dto.js';
 import { parseSearchSuggestions, type SearchSuggestion } from './search-suggestions.js';
@@ -40,6 +40,8 @@ export interface SearchResult {
   /** The board's id, e.g. "indeed". */
   site: string;
   draft: JobDraft;
+  /** The company logo, when the board sent one. */
+  logoUrl?: string;
   /** The user's existing job for this posting, if they already have it. */
   existing: DuplicateJob | null;
 }
@@ -161,7 +163,13 @@ export class SearchService {
       const id = post.id || `${post.site ?? 'job'}-${index}`;
       if (seen.has(id)) continue;
       seen.add(id);
-      results.push({ id, site: post.site ?? 'unknown', draft, existing: null });
+      results.push({
+        id,
+        site: post.site ?? 'unknown',
+        draft,
+        logoUrl: logoUrl(post),
+        existing: null,
+      });
     }
     await this.attachExisting(userId, results);
 

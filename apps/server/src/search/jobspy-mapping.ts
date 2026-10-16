@@ -41,3 +41,9 @@ export function postToDraft(post: JobSpyPost): JobDraft {
     Object.entries(draft).filter(([, value]) => value !== undefined),
   ) as JobDraft;
 }
+
+/** The company logo the board sent, if it is a web address the browser can load. */
+export function logoUrl(post: JobSpyPost): string | undefined {
+  const logo = post.company_logo?.trim();
+  return logo && /^https?:\/\//i.test(logo) ? logo : undefined;
+}

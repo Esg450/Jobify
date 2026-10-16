@@ -9,7 +9,7 @@ import {
   Sparkles,
   Trash2,
 } from 'lucide-react';
-import { useState, type ReactNode } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import {
   useAiSettings,
@@ -21,6 +21,7 @@ import {
 } from '../api/hooks';
 import { JOB_STATUSES, type Job, type JobStatus } from '../api/types';
 import { AiPanel } from '../components/AiPanel';
+import { Detail } from '../components/Detail';
 import { InterestRating } from '../components/InterestRating';
 import { Markdown } from '../components/Markdown';
 import { Timeline } from '../components/Timeline';
@@ -406,14 +407,5 @@ function DetailsCard({
         )}
       </dl>
     </Card>
-  );
-}
-
-function Detail({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="flex items-start justify-between gap-4 px-5 py-3">
-      <dt className="text-zinc-500 dark:text-zinc-400">{label}</dt>
-      <dd className="text-right">{children}</dd>
-    </div>
   );
 }
