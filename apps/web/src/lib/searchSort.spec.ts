@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { JobDraft, SearchResult } from '../api/types';
-import { filterBySalary, sortResults } from './searchSort';
+import { filterBySalary, isCustomSalary, SALARY_PRESETS, sortResults } from './searchSort';
 
 function result(id: string, draft: JobDraft): SearchResult {
   return { id, site: 'indeed', draft: { title: 'Engineer', ...draft }, existing: null };
@@ -68,5 +68,21 @@ describe('filterBySalary', () => {
 
   it('can hide postings without pay', () => {
     expect(ids(filterBySalary(results, { hideUnlisted: true }))).toEqual(['a', 'c', 'd']);
+  });
+});
+
+describe('isCustomSalary', () => {
+  it('treats no filter and preset minimums as presets', () => {
+    expect(isCustomSalary({ hideUnlisted: false })).toBe(false);
+    expect(isCustomSalary({ min: SALARY_PRESETS[0], hideUnlisted: true })).toBe(false);
+  });
+
+  it('treats other amounts as a custom range', () => {
+    expect(isCustomSalary({ min: 90000, hideUnlisted: false })).toBe(true);
+    expect(isCustomSalary({ max: 150000, hideUnlisted: false })).toBe(true);
+  });
+
+  it('keeps hiding postings without pay visible when no amount is set', () => {
+    expect(isCustomSalary({ hideUnlisted: true })).toBe(true);
   });
 });

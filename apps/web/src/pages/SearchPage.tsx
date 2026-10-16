@@ -51,6 +51,8 @@ import { formatDate, formatSalary } from '../lib/format';
 import { EMPLOYMENT_LABELS, WORKPLACE_LABELS } from '../lib/labels';
 import {
   filterBySalary,
+  isCustomSalary,
+  SALARY_PRESETS,
   SEARCH_SORTS,
   sortResults,
   type SalaryFilter,
@@ -106,9 +108,6 @@ function store(search: StoredSearch | null) {
 /** The pay filter, kept for the session on its own so it applies before the first search. */
 const SALARY_STORAGE_KEY = 'jobify:search-salary';
 const NO_SALARY_FILTER: SalaryFilter = { hideUnlisted: false };
-
-/** Minimum yearly pay presets; anything else is a custom range. */
-const SALARY_PRESETS = [50_000, 75_000, 100_000, 125_000, 150_000, 200_000];
 
 function loadSalary(): SalaryFilter {
   try {
@@ -656,8 +655,7 @@ function SalaryField({
   value: SalaryFilter;
   onChange: (value: SalaryFilter) => void;
 }) {
-  const isPreset = value.max == null && (value.min == null || SALARY_PRESETS.includes(value.min));
-  const [custom, setCustom] = useState(!isPreset);
+  const [custom, setCustom] = useState(() => isCustomSalary(value));
 
   const toThousands = (amount: number | undefined): string =>
     amount == null ? '' : String(amount / 1000);

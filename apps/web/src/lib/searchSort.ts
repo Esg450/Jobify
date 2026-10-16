@@ -37,6 +37,19 @@ export interface SalaryFilter {
   hideUnlisted: boolean;
 }
 
+/** Minimum yearly pay presets; anything else is a custom range. */
+export const SALARY_PRESETS: number[] = [50_000, 75_000, 100_000, 125_000, 150_000, 200_000];
+
+/**
+ * Whether the filter needs the custom range inputs. Hiding postings without pay with no
+ * amount set counts as custom, so the checkbox stays on screen when the filter is restored.
+ */
+export function isCustomSalary(filter: SalaryFilter): boolean {
+  if (filter.max != null) return true;
+  if (filter.min == null) return filter.hideUnlisted;
+  return !SALARY_PRESETS.includes(filter.min);
+}
+
 export function filterBySalary(results: SearchResult[], filter: SalaryFilter): SearchResult[] {
   return results.filter(({ draft }) => {
     const range = yearlyRange(draft);
