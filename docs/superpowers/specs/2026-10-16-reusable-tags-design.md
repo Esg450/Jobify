@@ -14,7 +14,7 @@ showed on the job detail page.
 - **Colors.** Each tag has one of a fixed palette of colors (`TAG_COLORS`), chosen so chips stay
   readable in light and dark mode.
 - **Visible everywhere.** Colored chips on the Jobs list, Board cards and job details.
-- **Filter.** The Jobs list (and Board) can be filtered by tag from the Filters panel (`?tags=a,b`, any match), stored in
+- **Filter.** The Jobs list (and Board) can be filtered by tag from a Tags dropdown (`?tags=a,b`, any match), stored in
   the URL like the other filters.
 
 ## How it's stored

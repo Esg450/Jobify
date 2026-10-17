@@ -1,4 +1,4 @@
-import { Check, ChevronDown, Search, SlidersHorizontal } from 'lucide-react';
+import { Check, ChevronDown, Search } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import {
   JOB_STATUSES,
@@ -12,7 +12,7 @@ import { STATUS_LABELS, STATUS_STYLES, WORKPLACE_LABELS } from '../lib/labels';
 import { useDebouncedValue } from '../lib/useDebouncedValue';
 import type { useJobFilters } from '../lib/useJobFilters';
 import { TagChecklist } from './Tags';
-import { Checkbox, Field, Input, Select } from './ui/fields';
+import { Checkbox, Input, Select } from './ui/fields';
 
 const SORT_OPTIONS: { value: JobSortField; label: string }[] = [
   { value: 'updatedAt', label: 'Recently updated' },
@@ -57,22 +57,40 @@ export function JobFilters({
 
   return (
     <div className="flex flex-col gap-3">
+      <div className="relative">
+        <Search
+          className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-zinc-400"
+          aria-hidden
+        />
+        <Input
+          type="search"
+          placeholder="Search title, company or location"
+          aria-label="Search jobs"
+          className="pl-9"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+        />
+      </div>
+
       <div className="flex flex-wrap items-center gap-3">
-        <div className="relative min-w-56 flex-1">
-          <Search
-            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-zinc-400"
-            aria-hidden
-          />
-          <Input
-            type="search"
-            placeholder="Search title, company or location"
-            aria-label="Search jobs"
-            className="pl-9"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-          />
-        </div>
-        <FiltersMenu filters={filters} onChange={onChange} />
+        <Select
+          aria-label="Workplace"
+          className="min-w-36 flex-1 sm:w-auto sm:flex-none"
+          value={filters.workplaceType[0] ?? ''}
+          onChange={(event) =>
+            onChange({
+              workplaceType: event.target.value ? [event.target.value as WorkplaceType] : [],
+            })
+          }
+        >
+          <option value="">Any workplace</option>
+          {WORKPLACE_TYPES.map((type) => (
+            <option key={type} value={type}>
+              {WORKPLACE_LABELS[type]}
+            </option>
+          ))}
+        </Select>
+        <TagsMenu value={filters.tags} onChange={(tags) => onChange({ tags })} />
         {/* Wider screens sort by clicking the Jobs table's column headers. */}
         {showSort && (
           <Select
@@ -92,6 +110,11 @@ export function JobFilters({
             ))}
           </Select>
         )}
+        <Checkbox
+          label="Archived"
+          checked={filters.archived ?? false}
+          onChange={(event) => onChange({ archived: event.target.checked })}
+        />
       </div>
 
       {showStatus && (
@@ -133,18 +156,16 @@ export function JobFilters({
   );
 }
 
-interface FiltersMenuProps {
-  filters: Filters;
-  onChange: (changes: Partial<JobQuery>) => void;
+interface TagsMenuProps {
+  value: string[];
+  onChange: (tags: string[]) => void;
 }
 
-/** The "Filters" button: workplace, tags and archived jobs in a dropdown panel. */
-function FiltersMenu({ filters, onChange }: FiltersMenuProps) {
+/** The "Tags" dropdown: search the user's tags and pick the ones to show. */
+function TagsMenu({ value, onChange }: TagsMenuProps) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
-  const count: number =
-    filters.workplaceType.length + filters.tags.length + (filters.archived ? 1 : 0);
 
   // Close on a click outside or Escape, like a native select.
   useEffect(() => {
@@ -169,7 +190,7 @@ function FiltersMenu({ filters, onChange }: FiltersMenuProps) {
     <div
       ref={root}
       className="relative flex-1 sm:flex-none"
-      // Close when keyboard focus leaves the panel.
+      // Close when keyboard focus leaves the dropdown.
       onBlur={(event) => {
         const next = event.relatedTarget as Node | null;
         if (next && !root.current?.contains(next)) setOpen(false);
@@ -183,11 +204,10 @@ function FiltersMenu({ filters, onChange }: FiltersMenuProps) {
         onClick={() => setOpen((current) => !current)}
         className="inline-flex w-full items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm ring-1 ring-zinc-300 ring-inset hover:bg-zinc-50 focus:ring-2 focus:ring-indigo-500 focus:outline-none dark:bg-zinc-900 dark:text-zinc-100 dark:ring-zinc-700 dark:hover:bg-zinc-800"
       >
-        <SlidersHorizontal className="size-4 text-zinc-400" aria-hidden />
-        Filters
-        {count > 0 && (
+        Tags
+        {value.length > 0 && (
           <span className="rounded-full bg-indigo-100 px-1.5 text-xs text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
-            {count}
+            {value.length}
           </span>
         )}
         <ChevronDown
@@ -199,47 +219,10 @@ function FiltersMenu({ filters, onChange }: FiltersMenuProps) {
       {open && (
         <div
           role="dialog"
-          aria-label="Filters"
-          className="absolute right-0 z-20 mt-1 flex w-80 max-w-[calc(100vw-2rem)] flex-col gap-4 rounded-lg bg-white p-4 shadow-lg ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-800"
+          aria-label="Filter by tag"
+          className="absolute z-20 mt-1 w-72 max-w-[calc(100vw-2rem)] rounded-lg bg-white shadow-lg dark:bg-zinc-900"
         >
-          <Field label="Workplace">
-            {(id) => (
-              <Select
-                id={id}
-                value={filters.workplaceType[0] ?? ''}
-                onChange={(event) =>
-                  onChange({
-                    workplaceType: event.target.value ? [event.target.value as WorkplaceType] : [],
-                  })
-                }
-              >
-                <option value="">Any workplace</option>
-                {WORKPLACE_TYPES.map((type) => (
-                  <option key={type} value={type}>
-                    {WORKPLACE_LABELS[type]}
-                  </option>
-                ))}
-              </Select>
-            )}
-          </Field>
-          <div className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Tags</span>
-            <TagChecklist value={filters.tags} onChange={(tags) => onChange({ tags })} />
-          </div>
-          <Checkbox
-            label="Show archived jobs"
-            checked={filters.archived ?? false}
-            onChange={(event) => onChange({ archived: event.target.checked })}
-          />
-          {count > 0 && (
-            <button
-              type="button"
-              onClick={() => onChange({ workplaceType: [], tags: [], archived: false })}
-              className="self-start text-sm text-indigo-600 hover:underline dark:text-indigo-400"
-            >
-              Clear filters
-            </button>
-          )}
+          <TagChecklist value={value} onChange={onChange} />
         </div>
       )}
     </div>
