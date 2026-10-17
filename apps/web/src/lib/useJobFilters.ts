@@ -33,11 +33,12 @@ export function useJobFilters() {
   const huntId = useSelectedHuntId() ?? undefined;
 
   const sort = params.get('sort');
-  const filters: Required<Pick<JobQuery, 'status' | 'workplaceType'>> & JobQuery = {
+  const filters: Required<Pick<JobQuery, 'status' | 'workplaceType' | 'tags'>> & JobQuery = {
     huntId,
     q: params.get('q') ?? '',
     status: listParam<JobStatus>(params.get('status'), JOB_STATUSES),
     workplaceType: listParam<WorkplaceType>(params.get('workplaceType'), WORKPLACE_TYPES),
+    tags: params.get('tags')?.split(',').filter(Boolean) ?? [],
     archived: params.get('archived') === 'true',
     sort: SORT_FIELDS.includes(sort as JobSortField) ? (sort as JobSortField) : 'updatedAt',
     order: params.get('order') === 'asc' ? 'asc' : 'desc',
@@ -49,6 +50,7 @@ export function useJobFilters() {
       ['q', next.q ?? ''],
       ['status', (next.status ?? []).join(',')],
       ['workplaceType', (next.workplaceType ?? []).join(',')],
+      ['tags', (next.tags ?? []).join(',')],
       ['archived', next.archived ? 'true' : ''],
       ['sort', next.sort === 'updatedAt' ? '' : (next.sort ?? '')],
       ['order', next.order === 'desc' ? '' : (next.order ?? '')],

@@ -139,9 +139,33 @@ export interface JobQuery {
   q?: string;
   status?: JobStatus[];
   workplaceType?: WorkplaceType[];
+  /** Jobs with any of these tags. */
+  tags?: string[];
   archived?: boolean;
   sort?: JobSortField;
   order?: 'asc' | 'desc';
+}
+
+/** Mirrors the server's TAG_COLORS. */
+export const TAG_COLORS = [
+  'gray',
+  'red',
+  'orange',
+  'amber',
+  'green',
+  'teal',
+  'sky',
+  'blue',
+  'violet',
+  'pink',
+] as const;
+export type TagColor = (typeof TAG_COLORS)[number];
+
+export interface Tag {
+  name: string;
+  color: TagColor;
+  /** How many of the user's jobs (in any hunt) carry it. */
+  count: number;
 }
 
 export interface EventInput {
@@ -409,8 +433,21 @@ export interface DashboardLayout {
   hidden: DashboardCard[];
 }
 
+/** Mirrors the server's JOB_COLUMNS: the optional columns of the Jobs table. */
+export const JOB_COLUMNS = [
+  'status',
+  'location',
+  'salary',
+  'tags',
+  'interest',
+  'applied',
+  'updated',
+] as const;
+export type JobColumn = (typeof JOB_COLUMNS)[number];
+
 export interface Preferences {
   dashboard: DashboardLayout;
+  hiddenJobColumns: JobColumn[];
 }
 
 export type UserRole = 'admin' | 'user';
