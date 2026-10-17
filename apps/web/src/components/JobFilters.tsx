@@ -57,22 +57,21 @@ export function JobFilters({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="relative">
-        <Search
-          className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-zinc-400"
-          aria-hidden
-        />
-        <Input
-          type="search"
-          placeholder="Search title, company or location"
-          aria-label="Search jobs"
-          className="pl-9"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-        />
-      </div>
-
       <div className="flex flex-wrap items-center gap-3">
+        <div className="relative min-w-56 flex-1">
+          <Search
+            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-zinc-400"
+            aria-hidden
+          />
+          <Input
+            type="search"
+            placeholder="Search title, company or location"
+            aria-label="Search jobs"
+            className="pl-9"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+        </div>
         <Select
           aria-label="Workplace"
           className="min-w-36 flex-1 sm:w-auto sm:flex-none"
@@ -220,7 +219,7 @@ function TagsMenu({ value, onChange }: TagsMenuProps) {
         <div
           role="dialog"
           aria-label="Filter by tag"
-          className="absolute z-20 mt-1 w-72 max-w-[calc(100vw-2rem)] rounded-lg bg-white shadow-lg dark:bg-zinc-900"
+          className="absolute left-0 z-20 mt-1 w-72 sm:right-0 sm:left-auto max-w-[calc(100vw-2rem)] rounded-lg bg-white shadow-lg dark:bg-zinc-900"
         >
           <TagChecklist value={value} onChange={onChange} />
         </div>
