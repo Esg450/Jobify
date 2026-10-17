@@ -31,6 +31,7 @@ import { Alert, EmptyState, errorText } from '../components/ui/feedback';
 import { Select, Textarea } from '../components/ui/fields';
 import { Modal } from '../components/ui/Modal';
 import { PageSpinner } from '../components/ui/Spinner';
+import { TagList } from '../components/Tags';
 import { cn } from '../lib/cn';
 import { formatDate, formatSalary } from '../lib/format';
 import { EMPLOYMENT_LABELS, STATUS_LABELS, STATUS_STYLES, WORKPLACE_LABELS } from '../lib/labels';
@@ -393,16 +394,7 @@ function DetailsCard({
         )}
         {job.tags.length > 0 && (
           <Detail label="Tags">
-            <div className="flex flex-wrap justify-end gap-1">
-              {job.tags.map((tag) => (
-                <span
-                  key={tag}
-                  className="rounded-md bg-zinc-100 px-2 py-0.5 text-xs dark:bg-zinc-800"
-                >
-                  {tag}
-                </span>
-              ))}
-            </div>
+            <TagList tags={job.tags} className="justify-end" />
           </Detail>
         )}
       </dl>

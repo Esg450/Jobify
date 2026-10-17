@@ -1,10 +1,17 @@
-import { Search } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { JOB_STATUSES, WORKPLACE_TYPES, type JobQuery, type JobSortField } from '../api/types';
+import { Check, ChevronDown, Search } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import {
+  JOB_STATUSES,
+  WORKPLACE_TYPES,
+  type JobQuery,
+  type JobSortField,
+  type WorkplaceType,
+} from '../api/types';
 import { cn } from '../lib/cn';
 import { STATUS_LABELS, STATUS_STYLES, WORKPLACE_LABELS } from '../lib/labels';
 import { useDebouncedValue } from '../lib/useDebouncedValue';
 import type { useJobFilters } from '../lib/useJobFilters';
+import { TagChecklist } from './Tags';
 import { Checkbox, Input, Select } from './ui/fields';
 
 const SORT_OPTIONS: { value: JobSortField; label: string }[] = [
@@ -67,13 +74,11 @@ export function JobFilters({
         </div>
         <Select
           aria-label="Workplace"
-          className="w-auto"
+          className="min-w-36 flex-1 sm:w-auto sm:flex-none"
           value={filters.workplaceType[0] ?? ''}
           onChange={(event) =>
             onChange({
-              workplaceType: event.target.value
-                ? [event.target.value as (typeof WORKPLACE_TYPES)[number]]
-                : [],
+              workplaceType: event.target.value ? [event.target.value as WorkplaceType] : [],
             })
           }
         >
@@ -84,10 +89,12 @@ export function JobFilters({
             </option>
           ))}
         </Select>
+        <TagsMenu value={filters.tags} onChange={(tags) => onChange({ tags })} />
+        {/* Wider screens sort by clicking the Jobs table's column headers. */}
         {showSort && (
           <Select
             aria-label="Sort by"
-            className="w-auto"
+            className="min-w-36 flex-1 sm:w-auto sm:flex-none md:hidden"
             value={`${filters.sort}:${filters.order}`}
             onChange={(event) => {
               const [sort, order] = event.target.value.split(':') as [JobSortField, 'asc' | 'desc'];
@@ -110,7 +117,11 @@ export function JobFilters({
       </div>
 
       {showStatus && (
-        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter by status">
+        <div
+          className="-mx-4 flex gap-1.5 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0"
+          role="group"
+          aria-label="Filter by status"
+        >
           {JOB_STATUSES.map((status) => {
             const active = filters.status.includes(status);
             return (
@@ -120,20 +131,97 @@ export function JobFilters({
                 aria-pressed={active}
                 onClick={() => toggleStatus(status)}
                 className={cn(
-                  'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ring-1 transition-colors ring-inset',
+                  'inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-medium ring-1 transition-colors ring-inset focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none sm:py-1',
                   active
                     ? STATUS_STYLES[status].badge
-                    : 'text-zinc-600 ring-zinc-200 hover:bg-zinc-100 dark:text-zinc-400 dark:ring-zinc-700 dark:hover:bg-zinc-800',
+                    : 'text-zinc-600 ring-zinc-200 hover:bg-zinc-100 dark:text-zinc-400 dark:ring-zinc-700 dark:hover:bg-zinc-800/70',
                 )}
               >
-                <span
-                  aria-hidden
-                  className={cn('size-1.5 rounded-full', STATUS_STYLES[status].dot)}
-                />
+                {active ? (
+                  <Check className="size-3" aria-hidden />
+                ) : (
+                  <span
+                    aria-hidden
+                    className={cn('size-1.5 rounded-full', STATUS_STYLES[status].dot)}
+                  />
+                )}
                 {STATUS_LABELS[status]}
               </button>
             );
           })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface TagsMenuProps {
+  value: string[];
+  onChange: (tags: string[]) => void;
+}
+
+/** The "Tags" dropdown: search the user's tags and pick the ones to show. */
+function TagsMenu({ value, onChange }: TagsMenuProps) {
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  const button = useRef<HTMLButtonElement>(null);
+
+  // Close on a click outside or Escape, like a native select.
+  useEffect(() => {
+    if (!open) return;
+    const onClick = (event: MouseEvent) => {
+      if (!root.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      setOpen(false);
+      button.current?.focus();
+    };
+    document.addEventListener('mousedown', onClick);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onClick);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  return (
+    <div
+      ref={root}
+      className="relative flex-1 sm:flex-none"
+      // Close when keyboard focus leaves the dropdown.
+      onBlur={(event) => {
+        const next = event.relatedTarget as Node | null;
+        if (next && !root.current?.contains(next)) setOpen(false);
+      }}
+    >
+      <button
+        ref={button}
+        type="button"
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        onClick={() => setOpen((current) => !current)}
+        className="inline-flex w-full items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm ring-1 ring-zinc-300 ring-inset hover:bg-zinc-50 focus:ring-2 focus:ring-indigo-500 focus:outline-none dark:bg-zinc-900 dark:text-zinc-100 dark:ring-zinc-700 dark:hover:bg-zinc-800"
+      >
+        Tags
+        {value.length > 0 && (
+          <span className="rounded-full bg-indigo-100 px-1.5 text-xs text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
+            {value.length}
+          </span>
+        )}
+        <ChevronDown
+          className={cn('ml-auto size-4 text-zinc-400 transition-transform', open && 'rotate-180')}
+          aria-hidden
+        />
+      </button>
+
+      {open && (
+        <div
+          role="dialog"
+          aria-label="Filter by tag"
+          className="absolute left-0 z-20 mt-1 w-72 sm:right-0 sm:left-auto max-w-[calc(100vw-2rem)] rounded-lg bg-white shadow-lg dark:bg-zinc-900"
+        >
+          <TagChecklist value={value} onChange={onChange} />
         </div>
       )}
     </div>

@@ -13,7 +13,7 @@ import { SettingsService } from '../settings/settings.service.js';
 import { hashPassword, verifyPassword } from './passwords.js';
 import { EMPTY_PROFILE, type ProfileDto } from './profile.dto.js';
 import type { PreferencesDto } from './preferences.dto.js';
-import { normalizeDashboard, type UserPreferences } from './preferences.js';
+import { JOB_COLUMNS, normalizeDashboard, type UserPreferences } from './preferences.js';
 import type { CreateUserDto, UpdateUserDto } from './users.dto.js';
 
 /** A user as exposed by the API: never includes the password hash or profile. */
@@ -156,7 +156,12 @@ export class UsersService {
       columns: { preferences: true },
     });
     if (!user) throw new NotFoundException(`User ${id} not found`);
-    return { dashboard: normalizeDashboard(user.preferences.dashboard) };
+    return {
+      dashboard: normalizeDashboard(user.preferences.dashboard),
+      hiddenJobColumns: (user.preferences.hiddenJobColumns ?? []).filter((column) =>
+        JOB_COLUMNS.includes(column),
+      ),
+    };
   }
 
   async updatePreferences(id: number, changes: PreferencesDto): Promise<UserPreferences> {

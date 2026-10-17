@@ -43,6 +43,13 @@ export class QueryJobsDto {
   @IsIn(WORKPLACE_TYPES, { each: true })
   workplaceType?: WorkplaceType[];
 
+  /** Jobs with any of these tags. */
+  @IsOptional()
+  @Transform(toList)
+  @IsString({ each: true })
+  @MaxLength(50, { each: true })
+  tags?: string[];
+
   @IsOptional()
   @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()

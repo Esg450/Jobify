@@ -4,6 +4,7 @@ import { jobChatMessages } from '../database/schema.js';
 import { createTestDatabase, type TestDatabase } from '../database/testing.js';
 import { HuntsService } from '../hunts/hunts.service.js';
 import { JobsService } from '../jobs/jobs.service.js';
+import { TagsService } from '../tags/tags.service.js';
 import type { BackupDto } from './backup.dto.js';
 import { BackupService } from './backup.service.js';
 
@@ -124,6 +125,25 @@ describe('BackupService', () => {
     expect(copied.map(({ role, content }) => ({ role, content }))).toEqual([
       { role: 'user', content: 'Hi' },
       { role: 'assistant', content: 'Hello' },
+    ]);
+  });
+
+  it('round-trips tag colors', async () => {
+    const tags = new TagsService(database.db);
+    await jobs.create(alice, { title: 'Engineer', company: 'Acme', tags: ['dream'] });
+    await tags.save(alice, { name: 'dream', color: 'violet' });
+    await tags.save(alice, { name: 'later', color: 'pink' });
+
+    const exported = await backup.exportJson(alice);
+    expect(exported.tags).toEqual([
+      { name: 'dream', color: 'violet' },
+      { name: 'later', color: 'pink' },
+    ]);
+
+    await backup.import(bob, JSON.parse(JSON.stringify(exported)) as BackupDto);
+    expect(await tags.list(bob)).toEqual([
+      { name: 'dream', color: 'violet', count: 1 },
+      { name: 'later', color: 'pink', count: 0 },
     ]);
   });
 
