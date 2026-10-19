@@ -46,4 +46,44 @@ describe('GreenhouseParser', () => {
       salaryPeriod: 'year',
     });
   });
+
+  it('offers every pay range, with its title, instead of only the first', async () => {
+    const page = fakePage({
+      url: 'https://boards.greenhouse.io/acme/jobs/123',
+      responses: {
+        'https://boards-api.greenhouse.io/v1/boards/acme/jobs/123?pay_transparency=true': {
+          title: 'Engineer',
+          pay_input_ranges: [
+            { min_cents: 19_500_000, max_cents: 25_500_000, currency_type: 'USD', title: 'CA, NY' },
+            {
+              min_cents: 17_300_000,
+              max_cents: 23_300_000,
+              currency_type: 'USD',
+              title: 'Other states',
+            },
+            { currency_type: 'USD', title: 'Empty' },
+          ],
+        },
+      },
+    });
+
+    const draft = await parser.parse(page);
+    expect(draft?.salaryMin).toBeUndefined();
+    expect(draft?.salaryRanges).toEqual([
+      {
+        label: 'CA, NY',
+        salaryMin: 195_000,
+        salaryMax: 255_000,
+        salaryCurrency: 'USD',
+        salaryPeriod: 'year',
+      },
+      {
+        label: 'Other states',
+        salaryMin: 173_000,
+        salaryMax: 233_000,
+        salaryCurrency: 'USD',
+        salaryPeriod: 'year',
+      },
+    ]);
+  });
 });

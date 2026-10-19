@@ -1,4 +1,4 @@
-import type { JobDraft } from '../job-draft.js';
+import { salaryFromRanges, type JobDraft, type SalaryRange } from '../job-draft.js';
 import type { JobParser, PageContext } from '../job-parser.js';
 import {
   cleanText,
@@ -17,6 +17,12 @@ interface AshbyCompensationComponent {
   maxValue?: number;
 }
 
+/** A pay tier, which employers usually define per location ("Zone 1 - SF Bay Area"). */
+interface AshbyCompensationTier {
+  title?: string;
+  components?: AshbyCompensationComponent[];
+}
+
 interface AshbyJob {
   id: string;
   title?: string;
@@ -27,7 +33,10 @@ interface AshbyJob {
   descriptionHtml?: string;
   publishedAt?: string;
   jobUrl?: string;
-  compensation?: { summaryComponents?: AshbyCompensationComponent[] };
+  compensation?: {
+    summaryComponents?: AshbyCompensationComponent[];
+    compensationTiers?: AshbyCompensationTier[];
+  };
 }
 
 /**
@@ -56,10 +65,6 @@ export class AshbyParser implements JobParser {
     const job = board.jobs?.find((candidate) => candidate.id === jobId);
     if (!job?.title) return null;
 
-    const salary = job.compensation?.summaryComponents?.find(
-      (component) => component.compensationType === 'Salary',
-    );
-
     return {
       title: cleanText(job.title),
       location: cleanText(job.location),
@@ -67,11 +72,34 @@ export class AshbyParser implements JobParser {
       employmentType: normalizeEmploymentType(job.employmentType),
       description: htmlToMarkdown(job.descriptionHtml),
       postedOn: toCalendarDate(job.publishedAt),
-      salaryMin: salary?.minValue,
-      salaryMax: salary?.maxValue,
-      salaryCurrency: salary?.currencyCode,
-      salaryPeriod: normalizeSalaryPeriod(salary?.interval),
+      ...salaryFromRanges(AshbyParser.salaryRanges(job.compensation)),
       url: job.jobUrl ?? page.url!.toString(),
     };
+  }
+
+  /**
+   * One range per pay tier when the employer defines several; otherwise the summary range,
+   * which spans every tier.
+   */
+  static salaryRanges(compensation: AshbyJob['compensation']): SalaryRange[] {
+    const salaryOf = (components: AshbyCompensationComponent[] | undefined) => {
+      const salary = components?.find((component) => component.compensationType === 'Salary');
+      if (!salary?.minValue && !salary?.maxValue) return undefined;
+      return {
+        salaryMin: salary.minValue,
+        salaryMax: salary.maxValue,
+        salaryCurrency: salary.currencyCode,
+        salaryPeriod: normalizeSalaryPeriod(salary.interval),
+      };
+    };
+
+    const tiers = (compensation?.compensationTiers ?? []).flatMap((tier) => {
+      const salary = salaryOf(tier.components);
+      return salary ? [{ label: cleanText(tier.title), ...salary }] : [];
+    });
+    if (tiers.length > 1) return tiers;
+
+    const summary = salaryOf(compensation?.summaryComponents);
+    return summary ? [summary] : tiers;
   }
 }
