@@ -10,6 +10,14 @@
 @layer base {
   html {
     @apply bg-zinc-50 text-zinc-900 antialiased dark:bg-zinc-950 dark:text-zinc-100;
+    color-scheme: light;
+    scrollbar-color: var(--color-zinc-300) transparent;
+  }
+
+  /* Tells the browser to draw native scrollbars and form controls dark. */
+  html.dark {
+    color-scheme: dark;
+    scrollbar-color: var(--color-zinc-700) transparent;
   }
 
   :focus-visible {
