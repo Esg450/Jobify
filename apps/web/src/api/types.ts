@@ -206,6 +206,16 @@ export interface Stats {
   })[];
 }
 
+/** One of several pay ranges a posting lists, usually by the candidate's location. */
+export interface SalaryRange {
+  /** Who the range applies to, e.g. "CA, WA, NY, NJ, CT", when the posting says. */
+  label?: string;
+  salaryMin?: number;
+  salaryMax?: number;
+  salaryCurrency?: string;
+  salaryPeriod?: SalaryPeriod;
+}
+
 export type JobDraft = Partial<
   Pick<
     Job,
@@ -224,7 +234,10 @@ export type JobDraft = Partial<
     | 'postedOn'
     | 'deadlineOn'
   >
->;
+> & {
+  /** Set instead of the salary when the posting lists several ranges, for the user to pick from. */
+  salaryRanges?: SalaryRange[];
+};
 
 export interface ImportRequest {
   url?: string;
