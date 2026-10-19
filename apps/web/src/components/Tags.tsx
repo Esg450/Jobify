@@ -98,9 +98,7 @@ export function ColorSwatches({ value, onChange, label = 'Tag color' }: ColorSwa
   );
 }
 
-/** Commas separate tags in filter URLs, so names cannot contain them. */
-const cleanName = (text: string) =>
-  text.replace(/,/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 50);
+const cleanName = (text: string) => text.replace(/\s+/g, ' ').trim().slice(0, 50);
 
 interface TagPickerProps {
   id?: string;
@@ -142,6 +140,19 @@ export function TagPicker({ id, value, onChange }: TagPickerProps) {
     add(query);
   };
 
+  // A pasted list ("a, b, c") becomes one tag per item; existing tags keep their color.
+  const addPasted = (pasted: string) => {
+    const names = pasted.split(',').map(cleanName).filter(Boolean);
+    const added: string[] = [];
+    for (const name of names) {
+      const known = tags.find((tag) => tag.name.toLowerCase() === name.toLowerCase());
+      if (!known) save(name, newColor);
+      added.push(known?.name ?? name);
+    }
+    onChange([...new Set([...value, ...added])]);
+    setText('');
+  };
+
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Enter' || event.key === ',') {
       event.preventDefault();
@@ -181,6 +192,12 @@ export function TagPicker({ id, value, onChange }: TagPickerProps) {
           // Delay so a click on a suggestion lands before the list closes.
           onBlur={() => setTimeout(() => setOpen(false), 150)}
           onKeyDown={onKeyDown}
+          onPaste={(event) => {
+            const pasted = event.clipboardData.getData('text');
+            if (!pasted.includes(',')) return;
+            event.preventDefault();
+            addPasted(pasted);
+          }}
           placeholder={value.length === 0 ? 'Add tags, e.g. dream company' : ''}
           role="combobox"
           aria-expanded={open}
@@ -256,13 +273,9 @@ interface TagChecklistProps {
 
 /** Tag search for the job list's Filters panel: chosen tags sit in the search box as chips. */
 export function TagChecklist({ value, onChange }: TagChecklistProps) {
-  const { data: tags = [] } = useTags();
+  const { data: tags = [], isPending } = useTags();
   const colors = useTagColors();
   const [search, setSearch] = useState('');
-
-  if (tags.length === 0) {
-    return <p className="text-sm text-zinc-500 dark:text-zinc-400">No tags yet.</p>;
-  }
 
   const shown = tags.filter(
     (tag) =>
@@ -314,7 +327,13 @@ export function TagChecklist({ value, onChange }: TagChecklistProps) {
         ))}
         {shown.length === 0 && (
           <li className="px-3 py-2 text-sm text-zinc-500 dark:text-zinc-400">
-            {search ? 'No tags match.' : 'All tags chosen.'}
+            {isPending
+              ? 'Loading tags…'
+              : tags.length === 0
+                ? 'No tags yet.'
+                : search
+                  ? 'No tags match.'
+                  : 'All tags chosen.'}
           </li>
         )}
       </ul>

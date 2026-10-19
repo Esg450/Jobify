@@ -1,5 +1,5 @@
-import { Check, ChevronDown, Search } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { Check, Search } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import {
   JOB_STATUSES,
   WORKPLACE_TYPES,
@@ -12,6 +12,7 @@ import { STATUS_LABELS, STATUS_STYLES, WORKPLACE_LABELS } from '../lib/labels';
 import { useDebouncedValue } from '../lib/useDebouncedValue';
 import type { useJobFilters } from '../lib/useJobFilters';
 import { TagChecklist } from './Tags';
+import { Dropdown } from './ui/Dropdown';
 import { Checkbox, Input, Select } from './ui/fields';
 
 const SORT_OPTIONS: { value: JobSortField; label: string }[] = [
@@ -90,11 +91,11 @@ export function JobFilters({
           ))}
         </Select>
         <TagsMenu value={filters.tags} onChange={(tags) => onChange({ tags })} />
-        {/* Wider screens sort by clicking the Jobs table's column headers. */}
+        {/* The Jobs table's column headers are a shortcut; they don't cover every sort (company, date added) or hidden columns. */}
         {showSort && (
           <Select
             aria-label="Sort by"
-            className="min-w-36 flex-1 sm:w-auto sm:flex-none md:hidden"
+            className="min-w-36 flex-1 sm:w-auto sm:flex-none"
             value={`${filters.sort}:${filters.order}`}
             onChange={(event) => {
               const [sort, order] = event.target.value.split(':') as [JobSortField, 'asc' | 'desc'];
@@ -162,68 +163,24 @@ interface TagsMenuProps {
 
 /** The "Tags" dropdown: search the user's tags and pick the ones to show. */
 function TagsMenu({ value, onChange }: TagsMenuProps) {
-  const [open, setOpen] = useState(false);
-  const root = useRef<HTMLDivElement>(null);
-  const button = useRef<HTMLButtonElement>(null);
-
-  // Close on a click outside or Escape, like a native select.
-  useEffect(() => {
-    if (!open) return;
-    const onClick = (event: MouseEvent) => {
-      if (!root.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      setOpen(false);
-      button.current?.focus();
-    };
-    document.addEventListener('mousedown', onClick);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onClick);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [open]);
-
   return (
-    <div
-      ref={root}
-      className="relative flex-1 sm:flex-none"
-      // Close when keyboard focus leaves the dropdown.
-      onBlur={(event) => {
-        const next = event.relatedTarget as Node | null;
-        if (next && !root.current?.contains(next)) setOpen(false);
-      }}
+    <Dropdown
+      label="Filter by tag"
+      className="flex-1 sm:flex-none"
+      buttonClassName="w-full bg-white text-zinc-900 shadow-sm ring-1 ring-zinc-300 ring-inset hover:bg-zinc-50 focus:ring-2 focus:ring-indigo-500 focus:outline-none dark:bg-zinc-900 dark:text-zinc-100 dark:ring-zinc-700 dark:hover:bg-zinc-800"
+      panelClassName="left-0 w-72 max-w-[calc(100vw-2rem)] sm:right-0 sm:left-auto"
+      trigger={
+        <>
+          Tags
+          {value.length > 0 && (
+            <span className="rounded-full bg-indigo-100 px-1.5 text-xs text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
+              {value.length}
+            </span>
+          )}
+        </>
+      }
     >
-      <button
-        ref={button}
-        type="button"
-        aria-expanded={open}
-        aria-haspopup="dialog"
-        onClick={() => setOpen((current) => !current)}
-        className="inline-flex w-full items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm ring-1 ring-zinc-300 ring-inset hover:bg-zinc-50 focus:ring-2 focus:ring-indigo-500 focus:outline-none dark:bg-zinc-900 dark:text-zinc-100 dark:ring-zinc-700 dark:hover:bg-zinc-800"
-      >
-        Tags
-        {value.length > 0 && (
-          <span className="rounded-full bg-indigo-100 px-1.5 text-xs text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
-            {value.length}
-          </span>
-        )}
-        <ChevronDown
-          className={cn('ml-auto size-4 text-zinc-400 transition-transform', open && 'rotate-180')}
-          aria-hidden
-        />
-      </button>
-
-      {open && (
-        <div
-          role="dialog"
-          aria-label="Filter by tag"
-          className="absolute left-0 z-20 mt-1 w-72 sm:right-0 sm:left-auto max-w-[calc(100vw-2rem)] rounded-lg bg-white shadow-lg dark:bg-zinc-900"
-        >
-          <TagChecklist value={value} onChange={onChange} />
-        </div>
-      )}
-    </div>
+      <TagChecklist value={value} onChange={onChange} />
+    </Dropdown>
   );
 }

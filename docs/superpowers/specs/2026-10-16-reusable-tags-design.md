@@ -14,7 +14,7 @@ showed on the job detail page.
 - **Colors.** Each tag has one of a fixed palette of colors (`TAG_COLORS`), chosen so chips stay
   readable in light and dark mode.
 - **Visible everywhere.** Colored chips on the Jobs list, Board cards and job details.
-- **Filter.** The Jobs list (and Board) can be filtered by tag from a Tags dropdown (`?tags=a,b`, any match), stored in
+- **Filter.** The Jobs list (and Board) can be filtered by tag from a Tags dropdown (`?tags=a&tags=b`, any match, one param per tag so names may contain commas), stored in
   the URL like the other filters.
 
 ## How it's stored
@@ -35,4 +35,6 @@ showed on the job detail page.
 - A settings page for tags, and renaming or deleting tags. Tags created in the form keep their
   saved color (and stay in suggestions) even when no job uses them. Easy to add later if needed.
 - Free color picker (palette only).
-- Showing or hiding table columns. "Update what I see" was read as filtering by tag.
+
+The Jobs table also gained a Columns menu to show or hide optional columns (saved in
+`users.preferences.hiddenJobColumns`). "Update what I see" was first read as filtering by tag only.

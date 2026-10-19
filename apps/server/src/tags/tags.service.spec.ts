@@ -41,4 +41,15 @@ describe('TagsService', () => {
     await tags.save(alice, { name: 'later', color: 'teal' });
     expect(await tags.list(alice)).toEqual([{ name: 'later', color: 'teal', count: 0 }]);
   });
+
+  it('returns the saved tag with its job count, commas included', async () => {
+    await jobs.create(alice, { title: 'A', company: 'One', tags: ['C++, Rust'] });
+    await jobs.create(alice, { title: 'B', company: 'Two', tags: ['C++, Rust'] });
+    await jobs.create(bob, { title: 'C', company: 'Three', tags: ['C++, Rust'] });
+    expect(await tags.save(alice, { name: ' C++, Rust ', color: 'teal' })).toEqual({
+      name: 'C++, Rust',
+      color: 'teal',
+      count: 2,
+    });
+  });
 });

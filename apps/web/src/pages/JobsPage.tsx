@@ -15,6 +15,7 @@ import { StatusBadge } from '../components/StatusBadge';
 import { TagList } from '../components/Tags';
 import { ButtonLink } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
+import { Dropdown } from '../components/ui/Dropdown';
 import { Alert, EmptyState, errorText } from '../components/ui/feedback';
 import { Checkbox } from '../components/ui/fields';
 import { PageSpinner } from '../components/ui/Spinner';
@@ -291,27 +292,31 @@ function ColumnPicker({
   onChange: (hidden: JobColumn[]) => void;
 }) {
   return (
-    <details className="relative hidden md:block">
-      <summary className="inline-flex cursor-pointer list-none items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800 [&::-webkit-details-marker]:hidden">
-        <Columns3 className="size-4" aria-hidden />
-        Columns
-      </summary>
-      <div className="absolute right-0 z-20 mt-1 flex w-44 flex-col gap-2 rounded-lg bg-white p-3 shadow-lg ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-800">
-        {JOB_COLUMNS.map((column) => (
-          <Checkbox
-            key={column}
-            label={COLUMN_LABELS[column]}
-            checked={!hidden.includes(column)}
-            onChange={(event) =>
-              onChange(
-                event.target.checked
-                  ? hidden.filter((item) => item !== column)
-                  : [...hidden, column],
-              )
-            }
-          />
-        ))}
-      </div>
-    </details>
+    <Dropdown
+      label="Columns"
+      chevron={false}
+      className="hidden md:block"
+      buttonClassName="font-medium text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+      panelClassName="right-0 flex w-44 flex-col gap-2 p-3 ring-1 ring-zinc-200 dark:ring-zinc-800"
+      trigger={
+        <>
+          <Columns3 className="size-4" aria-hidden />
+          Columns
+        </>
+      }
+    >
+      {JOB_COLUMNS.map((column) => (
+        <Checkbox
+          key={column}
+          label={COLUMN_LABELS[column]}
+          checked={!hidden.includes(column)}
+          onChange={(event) =>
+            onChange(
+              event.target.checked ? hidden.filter((item) => item !== column) : [...hidden, column],
+            )
+          }
+        />
+      ))}
+    </Dropdown>
   );
 }

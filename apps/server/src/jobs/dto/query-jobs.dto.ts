@@ -43,9 +43,9 @@ export class QueryJobsDto {
   @IsIn(WORKPLACE_TYPES, { each: true })
   workplaceType?: WorkplaceType[];
 
-  /** Jobs with any of these tags. */
+  /** Jobs with any of these tags, sent as one `tags` param each since names may contain commas. */
   @IsOptional()
-  @Transform(toList)
+  @Transform(({ value }: { value: unknown }) => (typeof value === 'string' ? [value] : value))
   @IsString({ each: true })
   @MaxLength(50, { each: true })
   tags?: string[];

@@ -165,7 +165,11 @@ export class UsersService {
   }
 
   async updatePreferences(id: number, changes: PreferencesDto): Promise<UserPreferences> {
-    const preferences = { ...(await this.getPreferences(id)), ...changes };
+    // A validated DTO has every field as an own property, even the ones missing from the body.
+    const sent = Object.fromEntries(
+      Object.entries(changes).filter(([, value]) => value !== undefined && value !== null),
+    );
+    const preferences = { ...(await this.getPreferences(id)), ...sent };
     preferences.dashboard = normalizeDashboard(preferences.dashboard);
     await this.db.update(users).set({ preferences }).where(eq(users.id, id));
     return preferences;

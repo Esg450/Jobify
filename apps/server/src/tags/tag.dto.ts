@@ -3,7 +3,7 @@ import { TAG_COLORS, type TagColor } from './tag.constants.js';
 
 export class SaveTagDto {
   @IsString()
-  @Matches(/^[^,]*\S[^,]*$/, { message: 'name must not be blank or contain commas' })
+  @Matches(/\S/, { message: 'name must not be blank' })
   @MaxLength(50)
   name!: string;
 

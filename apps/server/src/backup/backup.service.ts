@@ -114,7 +114,8 @@ export class BackupService {
         return huntIds.get(index)!;
       };
 
-      for (const { name, color } of backup.tags ?? []) {
+      for (const { name: rawName, color } of backup.tags ?? []) {
+        const name = rawName.trim();
         await tx
           .insert(tags)
           .values({ userId, name, color })

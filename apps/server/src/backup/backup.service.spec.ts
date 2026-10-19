@@ -147,6 +147,13 @@ describe('BackupService', () => {
     ]);
   });
 
+  it('trims tag names on import like TagsService.save does', async () => {
+    const tags = new TagsService(database.db);
+    const exported = JSON.parse(JSON.stringify(await backup.exportJson(alice))) as BackupDto;
+    await backup.import(bob, { ...exported, tags: [{ name: ' dream ', color: 'violet' }] });
+    expect(await tags.list(bob)).toEqual([{ name: 'dream', color: 'violet', count: 0 }]);
+  });
+
   it('names the hunt in the CSV export', async () => {
     await hunts.create(alice, { name: 'Spring search' });
     await jobs.create(alice, { title: 'Engineer', company: 'Acme' });

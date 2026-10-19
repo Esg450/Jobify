@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { DATABASE, type Database } from '../database/database.module.js';
 import { jobs, tags } from '../database/schema.js';
 import { defaultTagColor, type TagColor } from './tag.constants.js';
@@ -49,6 +49,10 @@ export class TagsService {
       .insert(tags)
       .values({ userId, name, color: dto.color })
       .onConflictDoUpdate({ target: [tags.userId, tags.name], set: { color: dto.color } });
-    return (await this.list(userId)).find((tag) => tag.name === name)!;
+    const [{ count }] = await this.db
+      .select({ count: sql<number>`count(distinct "jobs"."id")` })
+      .from(sql`${jobs}, json_each(${jobs.tags}) as tag`)
+      .where(and(eq(jobs.userId, userId), sql`tag.value = ${name}`));
+    return { name, color: dto.color, count };
   }
 }

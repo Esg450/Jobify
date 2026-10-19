@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMemo } from 'react';
 import { selectHunt, useSelectedHuntId } from '../lib/huntSelection';
 import { api } from './client';
 import type {
@@ -312,8 +313,8 @@ export function useTags() {
 
 /** Tag name → color, for drawing chips. */
 export function useTagColors(): Map<string, TagColor> {
-  const { data: tags = [] } = useTags();
-  return new Map(tags.map((tag) => [tag.name, tag.color]));
+  const { data } = useTags();
+  return useMemo(() => new Map((data ?? []).map((tag) => [tag.name, tag.color])), [data]);
 }
 
 /** Creates a tag, or recolors an existing one. */
