@@ -22,7 +22,9 @@ function buildUrl(path: string, query?: Query): string {
   for (const [key, value] of Object.entries(query ?? {})) {
     if (value === undefined || value === '' || (Array.isArray(value) && value.length === 0))
       continue;
-    params.set(key, Array.isArray(value) ? value.join(',') : String(value));
+    // One param per value, so values may contain commas (tag names).
+    if (Array.isArray(value)) for (const item of value) params.append(key, item);
+    else params.set(key, String(value));
   }
   const search = params.toString();
   return `/api${path}${search ? `?${search}` : ''}`;

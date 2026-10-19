@@ -21,6 +21,7 @@ import {
   type JobEventType,
   type JobStatus,
 } from '../jobs/job.constants.js';
+import { SaveTagDto } from '../tags/tag.dto.js';
 
 /** Version 2 added job hunts. Version 1 backups still import, into the active hunt. */
 export const BACKUP_VERSION = 2;
@@ -106,6 +107,8 @@ export class BackupJobDto extends OmitType(CreateJobDto, ['huntId'] as const) {
   chat?: BackupChatMessageDto[];
 }
 
+export class BackupTagDto extends SaveTagDto {}
+
 export class BackupDto {
   @IsIn(SUPPORTED_BACKUP_VERSIONS)
   version!: number;
@@ -119,6 +122,13 @@ export class BackupDto {
   @ValidateNested({ each: true })
   @Type(() => BackupHuntDto)
   hunts?: BackupHuntDto[];
+
+  /** Tag colors. Optional: older backups have none, and their tags get default colors. */
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => BackupTagDto)
+  tags?: BackupTagDto[];
 
   @IsArray()
   @ValidateNested({ each: true })

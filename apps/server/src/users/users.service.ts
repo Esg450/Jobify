@@ -13,7 +13,7 @@ import { SettingsService } from '../settings/settings.service.js';
 import { hashPassword, verifyPassword } from './passwords.js';
 import { EMPTY_PROFILE, type ProfileDto } from './profile.dto.js';
 import type { PreferencesDto } from './preferences.dto.js';
-import { normalizeDashboard, type UserPreferences } from './preferences.js';
+import { JOB_COLUMNS, normalizeDashboard, type UserPreferences } from './preferences.js';
 import type { CreateUserDto, UpdateUserDto } from './users.dto.js';
 
 /** A user as exposed by the API: never includes the password hash or profile. */
@@ -156,11 +156,20 @@ export class UsersService {
       columns: { preferences: true },
     });
     if (!user) throw new NotFoundException(`User ${id} not found`);
-    return { dashboard: normalizeDashboard(user.preferences.dashboard) };
+    return {
+      dashboard: normalizeDashboard(user.preferences.dashboard),
+      hiddenJobColumns: (user.preferences.hiddenJobColumns ?? []).filter((column) =>
+        JOB_COLUMNS.includes(column),
+      ),
+    };
   }
 
   async updatePreferences(id: number, changes: PreferencesDto): Promise<UserPreferences> {
-    const preferences = { ...(await this.getPreferences(id)), ...changes };
+    // A validated DTO has every field as an own property, even the ones missing from the body.
+    const sent = Object.fromEntries(
+      Object.entries(changes).filter(([, value]) => value !== undefined && value !== null),
+    );
+    const preferences = { ...(await this.getPreferences(id)), ...sent };
     preferences.dashboard = normalizeDashboard(preferences.dashboard);
     await this.db.update(users).set({ preferences }).where(eq(users.id, id));
     return preferences;

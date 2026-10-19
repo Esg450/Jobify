@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { asc, eq } from 'drizzle-orm';
 import { DATABASE, type Database, type Executor } from '../database/database.module.js';
-import { jobChatMessages, jobEvents, jobHunts, jobs, type Job } from '../database/schema.js';
+import { jobChatMessages, jobEvents, jobHunts, jobs, tags, type Job } from '../database/schema.js';
 import { HuntsService } from '../hunts/hunts.service.js';
 import { BACKUP_VERSION, type BackupDto, type BackupHuntDto } from './backup.dto.js';
 import { toCsv } from './csv.js';
@@ -42,7 +42,7 @@ export class BackupService {
   ) {}
 
   async exportJson(userId: number) {
-    const [allHunts, allJobs, allEvents, allMessages] = await Promise.all([
+    const [allHunts, allJobs, allEvents, allMessages, allTags] = await Promise.all([
       this.db.select().from(jobHunts).where(eq(jobHunts.userId, userId)).orderBy(asc(jobHunts.id)),
       this.db.select().from(jobs).where(eq(jobs.userId, userId)).orderBy(asc(jobs.id)),
       this.db
@@ -59,12 +59,18 @@ export class BackupService {
         .where(eq(jobs.userId, userId))
         .orderBy(asc(jobChatMessages.id))
         .then((rows) => rows.map((row) => row.message)),
+      this.db
+        .select({ name: tags.name, color: tags.color })
+        .from(tags)
+        .where(eq(tags.userId, userId))
+        .orderBy(asc(tags.name)),
     ]);
 
     return {
       version: BACKUP_VERSION,
       exportedAt: new Date().toISOString(),
       hunts: allHunts.map(({ name, startedOn, endedOn }) => ({ name, startedOn, endedOn })),
+      tags: allTags,
       jobs: allJobs.map(({ id, userId, huntId, updatedAt, ...job }) => ({
         ...job,
         // The position of the job's hunt in `hunts`.
@@ -107,6 +113,14 @@ export class BackupService {
         if (!huntIds.has(index)) huntIds.set(index, await this.importHunt(tx, userId, hunt));
         return huntIds.get(index)!;
       };
+
+      for (const { name: rawName, color } of backup.tags ?? []) {
+        const name = rawName.trim();
+        await tx
+          .insert(tags)
+          .values({ userId, name, color })
+          .onConflictDoUpdate({ target: [tags.userId, tags.name], set: { color } });
+      }
 
       for (const { events = [], chat = [], createdAt, hunt, ...job } of backup.jobs) {
         const huntId = await huntIdFor(hunt);

@@ -71,6 +71,11 @@ export class JobsService {
     ];
     if (query.status?.length) filters.push(inArray(jobs.status, query.status));
     if (query.workplaceType?.length) filters.push(inArray(jobs.workplaceType, query.workplaceType));
+    if (query.tags?.length) {
+      filters.push(
+        sql`exists (select 1 from json_each(${jobs.tags}) where value in ${query.tags})`,
+      );
+    }
     if (query.q) {
       const pattern = `%${query.q}%`;
       filters.push(

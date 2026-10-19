@@ -113,8 +113,14 @@ describe('JobsService', () => {
       title: 'Frontend Engineer',
       company: 'Acme',
       workplaceType: 'remote',
+      tags: ['dream', 'react'],
     });
-    await jobs.create(alice, { title: 'Designer', company: 'Globex', status: 'applied' });
+    await jobs.create(alice, {
+      title: 'Designer',
+      company: 'Globex',
+      status: 'applied',
+      tags: ['figma'],
+    });
     await jobs.create(alice, { title: 'Old role', company: 'Initech', archived: true });
 
     const companies = async (query: Parameters<JobsService['list']>[1]) =>
@@ -125,6 +131,8 @@ describe('JobsService', () => {
     expect(await companies({ status: ['applied'] })).toEqual(['Globex']);
     expect(await companies({ workplaceType: ['remote'] })).toEqual(['Acme']);
     expect(await companies({ archived: true })).toEqual(['Initech']);
+    expect(await companies({ tags: ['dream'] })).toEqual(['Acme']);
+    expect((await companies({ tags: ['react', 'figma'] })).sort()).toEqual(['Acme', 'Globex']);
     expect(await companies({ sort: 'company', order: 'desc' })).toEqual(['Globex', 'Acme']);
   });
 

@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMemo } from 'react';
 import { selectHunt, useSelectedHuntId } from '../lib/huntSelection';
 import { api } from './client';
 import type {
@@ -31,6 +32,8 @@ import type {
   SearchTestInput,
   SearchTestResult,
   Stats,
+  Tag,
+  TagColor,
   TimelineJob,
   User,
   UserInput,
@@ -44,6 +47,7 @@ export const queryKeys = {
   statsOverview: (huntId: number | null) => ['stats', 'overview', huntId] as const,
   huntSummaries: ['stats', 'hunts'] as const,
   hunts: ['hunts'] as const,
+  tags: ['tags'] as const,
   timeline: (includeArchived: boolean, huntId: number | null) =>
     ['jobs', 'timeline', includeArchived, huntId] as const,
   aiSettings: ['ai', 'settings'] as const,
@@ -298,7 +302,28 @@ function useJobsChanged() {
     void queryClient.invalidateQueries({ queryKey: queryKeys.stats });
     // Hunts carry a job count, and the first job starts a hunt.
     void queryClient.invalidateQueries({ queryKey: queryKeys.hunts });
+    // Tags carry a job count too, and a job can bring a new tag.
+    void queryClient.invalidateQueries({ queryKey: queryKeys.tags });
   };
+}
+
+export function useTags() {
+  return useQuery({ queryKey: queryKeys.tags, queryFn: () => api.get<Tag[]>('/tags') });
+}
+
+/** Tag name → color, for drawing chips. */
+export function useTagColors(): Map<string, TagColor> {
+  const { data } = useTags();
+  return useMemo(() => new Map((data ?? []).map((tag) => [tag.name, tag.color])), [data]);
+}
+
+/** Creates a tag, or recolors an existing one. */
+export function useSaveTag() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { name: string; color: TagColor }) => api.post<Tag>('/tags', input),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.tags }),
+  });
 }
 
 export function useCreateJob() {

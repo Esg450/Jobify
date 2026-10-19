@@ -1,10 +1,18 @@
-import { Search } from 'lucide-react';
+import { Check, Search } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { JOB_STATUSES, WORKPLACE_TYPES, type JobQuery, type JobSortField } from '../api/types';
+import {
+  JOB_STATUSES,
+  WORKPLACE_TYPES,
+  type JobQuery,
+  type JobSortField,
+  type WorkplaceType,
+} from '../api/types';
 import { cn } from '../lib/cn';
 import { STATUS_LABELS, STATUS_STYLES, WORKPLACE_LABELS } from '../lib/labels';
 import { useDebouncedValue } from '../lib/useDebouncedValue';
 import type { useJobFilters } from '../lib/useJobFilters';
+import { TagChecklist } from './Tags';
+import { Dropdown } from './ui/Dropdown';
 import { Checkbox, Input, Select } from './ui/fields';
 
 const SORT_OPTIONS: { value: JobSortField; label: string }[] = [
@@ -67,13 +75,11 @@ export function JobFilters({
         </div>
         <Select
           aria-label="Workplace"
-          className="w-auto"
+          className="min-w-36 flex-1 sm:w-auto sm:flex-none"
           value={filters.workplaceType[0] ?? ''}
           onChange={(event) =>
             onChange({
-              workplaceType: event.target.value
-                ? [event.target.value as (typeof WORKPLACE_TYPES)[number]]
-                : [],
+              workplaceType: event.target.value ? [event.target.value as WorkplaceType] : [],
             })
           }
         >
@@ -84,10 +90,12 @@ export function JobFilters({
             </option>
           ))}
         </Select>
+        <TagsMenu value={filters.tags} onChange={(tags) => onChange({ tags })} />
+        {/* The Jobs table's column headers are a shortcut; they don't cover every sort (company, date added) or hidden columns. */}
         {showSort && (
           <Select
             aria-label="Sort by"
-            className="w-auto"
+            className="min-w-36 flex-1 sm:w-auto sm:flex-none"
             value={`${filters.sort}:${filters.order}`}
             onChange={(event) => {
               const [sort, order] = event.target.value.split(':') as [JobSortField, 'asc' | 'desc'];
@@ -110,7 +118,11 @@ export function JobFilters({
       </div>
 
       {showStatus && (
-        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter by status">
+        <div
+          className="-mx-4 flex gap-1.5 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0"
+          role="group"
+          aria-label="Filter by status"
+        >
           {JOB_STATUSES.map((status) => {
             const active = filters.status.includes(status);
             return (
@@ -120,16 +132,20 @@ export function JobFilters({
                 aria-pressed={active}
                 onClick={() => toggleStatus(status)}
                 className={cn(
-                  'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ring-1 transition-colors ring-inset',
+                  'inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-medium ring-1 transition-colors ring-inset focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:outline-none sm:py-1',
                   active
                     ? STATUS_STYLES[status].badge
-                    : 'text-zinc-600 ring-zinc-200 hover:bg-zinc-100 dark:text-zinc-400 dark:ring-zinc-700 dark:hover:bg-zinc-800',
+                    : 'text-zinc-600 ring-zinc-200 hover:bg-zinc-100 dark:text-zinc-400 dark:ring-zinc-700 dark:hover:bg-zinc-800/70',
                 )}
               >
-                <span
-                  aria-hidden
-                  className={cn('size-1.5 rounded-full', STATUS_STYLES[status].dot)}
-                />
+                {active ? (
+                  <Check className="size-3" aria-hidden />
+                ) : (
+                  <span
+                    aria-hidden
+                    className={cn('size-1.5 rounded-full', STATUS_STYLES[status].dot)}
+                  />
+                )}
                 {STATUS_LABELS[status]}
               </button>
             );
@@ -137,5 +153,34 @@ export function JobFilters({
         </div>
       )}
     </div>
+  );
+}
+
+interface TagsMenuProps {
+  value: string[];
+  onChange: (tags: string[]) => void;
+}
+
+/** The "Tags" dropdown: search the user's tags and pick the ones to show. */
+function TagsMenu({ value, onChange }: TagsMenuProps) {
+  return (
+    <Dropdown
+      label="Filter by tag"
+      className="flex-1 sm:flex-none"
+      buttonClassName="w-full bg-white text-zinc-900 shadow-sm ring-1 ring-zinc-300 ring-inset hover:bg-zinc-50 focus:ring-2 focus:ring-indigo-500 focus:outline-none dark:bg-zinc-900 dark:text-zinc-100 dark:ring-zinc-700 dark:hover:bg-zinc-800"
+      panelClassName="left-0 w-72 max-w-[calc(100vw-2rem)] sm:right-0 sm:left-auto"
+      trigger={
+        <>
+          Tags
+          {value.length > 0 && (
+            <span className="rounded-full bg-indigo-100 px-1.5 text-xs text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
+              {value.length}
+            </span>
+          )}
+        </>
+      }
+    >
+      <TagChecklist value={value} onChange={onChange} />
+    </Dropdown>
   );
 }

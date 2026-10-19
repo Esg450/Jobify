@@ -18,6 +18,7 @@ import {
 } from '../lib/labels';
 import { InterestRating } from './InterestRating';
 import { Markdown } from './Markdown';
+import { TagPicker } from './Tags';
 import { Button } from './ui/Button';
 import { Card, CardHeader } from './ui/Card';
 import { Alert } from './ui/feedback';
@@ -43,11 +44,10 @@ type FormValues = Record<
   | 'followUpOn'
   | 'contactName'
   | 'contactEmail'
-  | 'tags'
   | 'description'
   | 'notes',
   string
-> & { interest: number | null };
+> & { interest: number | null; tags: string[] };
 
 const text = (value: string | number | null | undefined) =>
   value === null || value === undefined ? '' : String(value);
@@ -72,7 +72,7 @@ function toFormValues(job: Partial<Job>): FormValues {
     followUpOn: text(job.followUpOn),
     contactName: text(job.contactName),
     contactEmail: text(job.contactEmail),
-    tags: (job.tags ?? []).join(', '),
+    tags: job.tags ?? [],
     description: text(job.description),
     notes: text(job.notes),
     interest: job.interest ?? null,
@@ -107,14 +107,7 @@ function toJobInput(values: FormValues): JobInput {
     followUpOn: optional(values.followUpOn),
     contactName: optional(values.contactName),
     contactEmail: optional(values.contactEmail),
-    tags: [
-      ...new Set(
-        values.tags
-          .split(',')
-          .map((tag) => tag.trim())
-          .filter(Boolean),
-      ),
-    ],
+    tags: values.tags,
     description: optional(values.description),
     notes: optional(values.notes),
   };
@@ -164,7 +157,7 @@ export function JobForm({
 
   const set = <K extends keyof FormValues>(key: K, value: FormValues[K]) =>
     setValues((current) => ({ ...current, [key]: value }));
-  const bind = (key: Exclude<keyof FormValues, 'interest'>) => ({
+  const bind = (key: Exclude<keyof FormValues, 'interest' | 'tags'>) => ({
     value: values[key],
     onChange: (event: { target: { value: string } }) => set(key, event.target.value),
   });
@@ -331,8 +324,12 @@ export function JobForm({
             {(id) => <Input id={id} type="date" {...bind('followUpOn')} />}
           </Field>
         </div>
-        <Field label="Tags" hint="Separate tags with commas." className="sm:col-span-2">
-          {(id) => <Input id={id} placeholder="frontend, dream company" {...bind('tags')} />}
+        <Field
+          label="Tags"
+          hint="Pick a tag you already use, or type a new one and choose its color. Click a tag to change its color."
+          className="sm:col-span-2"
+        >
+          {(id) => <TagPicker id={id} value={values.tags} onChange={(tags) => set('tags', tags)} />}
         </Field>
       </Section>
 

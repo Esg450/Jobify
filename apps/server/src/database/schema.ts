@@ -7,6 +7,7 @@ import {
   SALARY_PERIODS,
   WORKPLACE_TYPES,
 } from '../jobs/job.constants.js';
+import { TAG_COLORS } from '../tags/tag.constants.js';
 import type { UserPreferences } from '../users/preferences.js';
 
 const timestamps = {
@@ -174,6 +175,24 @@ export const jobChatMessages = sqliteTable(
   (table) => [index('job_chat_messages_job_idx').on(table.jobId)],
 );
 
+/**
+ * A user's tag and its color. Jobs keep tag names in `jobs.tags`; a row here exists only once a
+ * tag was created or recolored explicitly (see `TagsService`).
+ */
+export const tags = sqliteTable(
+  'tags',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    color: text('color', { enum: TAG_COLORS }).notNull(),
+    ...timestamps,
+  },
+  (table) => [uniqueIndex('tags_user_name_idx').on(table.userId, table.name)],
+);
+
 export const settings = sqliteTable('settings', {
   key: text('key').primaryKey(),
   value: text('value', { mode: 'json' }).$type<unknown>().notNull(),
@@ -186,3 +205,4 @@ export type NewJob = typeof jobs.$inferInsert;
 export type JobEvent = typeof jobEvents.$inferSelect;
 export type NewJobEvent = typeof jobEvents.$inferInsert;
 export type JobChatMessage = typeof jobChatMessages.$inferSelect;
+export type Tag = typeof tags.$inferSelect;

@@ -33,11 +33,12 @@ export function useJobFilters() {
   const huntId = useSelectedHuntId() ?? undefined;
 
   const sort = params.get('sort');
-  const filters: Required<Pick<JobQuery, 'status' | 'workplaceType'>> & JobQuery = {
+  const filters: Required<Pick<JobQuery, 'status' | 'workplaceType' | 'tags'>> & JobQuery = {
     huntId,
     q: params.get('q') ?? '',
     status: listParam<JobStatus>(params.get('status'), JOB_STATUSES),
     workplaceType: listParam<WorkplaceType>(params.get('workplaceType'), WORKPLACE_TYPES),
+    tags: params.getAll('tags').filter(Boolean),
     archived: params.get('archived') === 'true',
     sort: SORT_FIELDS.includes(sort as JobSortField) ? (sort as JobSortField) : 'updatedAt',
     order: params.get('order') === 'asc' ? 'asc' : 'desc',
@@ -53,7 +54,10 @@ export function useJobFilters() {
       ['sort', next.sort === 'updatedAt' ? '' : (next.sort ?? '')],
       ['order', next.order === 'desc' ? '' : (next.order ?? '')],
     ];
-    setParams(new URLSearchParams(entries.filter(([, value]) => value)), { replace: true });
+    const nextParams = new URLSearchParams(entries.filter(([, value]) => value));
+    // One `tags` param per tag, so a tag name may contain a comma.
+    for (const tag of next.tags ?? []) nextParams.append('tags', tag);
+    setParams(nextParams, { replace: true });
   };
 
   return [filters, update] as const;
