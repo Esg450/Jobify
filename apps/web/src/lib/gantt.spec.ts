@@ -69,6 +69,29 @@ describe('buildGanttRows', () => {
     expect(row.end.toDateString()).toBe(new Date('2026-09-11T00:00:00').toDateString());
   });
 
+  it('keeps the saved stretch of a job that was saved before it was applied for', () => {
+    const savedFirst: TimelineJob = {
+      ...JOB,
+      status: 'applied',
+      // Set by the server on the day the job left "saved", not when it was added.
+      appliedOn: '2026-09-05',
+      events: [
+        { ...JOB.events[0], toStatus: 'saved' },
+        {
+          type: 'status_change',
+          fromStatus: 'saved',
+          toStatus: 'applied',
+          title: null,
+          occurredAt: '2026-09-05T10:00:00.000Z',
+        },
+      ],
+    };
+    const [row] = buildGanttRows([savedFirst], TODAY);
+    expect(row.segments.map((segment) => segment.status)).toEqual(['saved', 'applied']);
+    expect(row.start.toDateString()).toBe(new Date('2026-09-01T00:00:00').toDateString());
+    expect(row.segments[0].end.toDateString()).toBe(new Date('2026-09-05T00:00:00').toDateString());
+  });
+
   it('sorts rows by start date', () => {
     const later = { ...JOB, id: 2, appliedOn: '2026-09-20' };
     expect(buildGanttRows([later, JOB], TODAY).map((row) => row.id)).toEqual([1, 2]);
