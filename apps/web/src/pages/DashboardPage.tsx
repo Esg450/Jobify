@@ -324,8 +324,11 @@ function CardGrid({
     });
   };
 
+  // `grid-cols-1` gives the phone layout a `minmax(0, 1fr)` column like the wider ones. A bare
+  // `auto` column grows to fit the widest card instead of shrinking it, and the activity lists'
+  // one-line rows pushed the whole page past the viewport.
   const grid = (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
       {visible.map((card) => (
         <div key={card} className={cn(CARDS[card].wide && 'sm:col-span-2')}>
           {children(card)}
