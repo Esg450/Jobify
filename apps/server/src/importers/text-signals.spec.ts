@@ -5,6 +5,7 @@ import {
   employmentTypeFromText,
   isListingTitle,
   locationFromText,
+  parseSalaries,
   parseSalary,
   splitPageTitle,
   workplaceTypeFromText,
@@ -54,6 +55,80 @@ describe('parseSalary', () => {
     ).toBeUndefined();
     expect(parseSalary('$5 per month subscription')).toBeUndefined();
     expect(parseSalary('Requisition 12345')).toBeUndefined();
+  });
+});
+
+describe('parseSalaries', () => {
+  it('collects every location-based range with its label', () => {
+    const text =
+      'We offer great benefits.\n\n' +
+      'USA base pay range (CA, WA, NY, NJ, CT) per year: $195,000 - $255,000\n\n' +
+      'USA base pay range (all other U.S. states) per year: $173,000 - $233,000\n\n#LI-Remote';
+    expect(parseSalaries(text)).toEqual([
+      {
+        label: 'CA, WA, NY, NJ, CT',
+        salaryMin: 195000,
+        salaryMax: 255000,
+        salaryCurrency: 'USD',
+        salaryPeriod: 'year',
+      },
+      {
+        label: 'all other U.S. states',
+        salaryMin: 173000,
+        salaryMax: 233000,
+        salaryCurrency: 'USD',
+        salaryPeriod: 'year',
+      },
+    ]);
+  });
+
+  it('labels ranges from list items and from one sentence', () => {
+    expect(
+      parseSalaries('- **Zone 1 (SF, NYC):** $200k - $240k\n- **Zone 2:** $180k - $220k per year'),
+    ).toMatchObject([
+      { label: 'Zone 1 (SF, NYC)', salaryMin: 200000 },
+      { label: 'Zone 2', salaryMin: 180000 },
+    ]);
+    expect(
+      parseSalaries(
+        'The base salary for this role in San Francisco is $200,000 - $240,000, and in all other locations is $180,000 - $220,000.',
+      ),
+    ).toMatchObject([
+      { label: 'The base salary for this role in San Francisco', salaryMin: 200000 },
+      { label: 'in all other locations', salaryMin: 180000 },
+    ]);
+  });
+
+  it('leaves the label out when nothing short introduces the range', () => {
+    const [range] = parseSalaries(
+      'Our ranges are set by level and location and reflect the target for new hires across all our offices in the United States, which for this role is $150,000 - $180,000.',
+    );
+    expect(range).toMatchObject({ salaryMin: 150000, label: undefined });
+  });
+
+  it('lists a repeated range once and ignores figures that are not alternatives', () => {
+    expect(
+      parseSalaries(
+        'Salary: $150,000 - $180,000 per year. Plus a $5,000 per year learning stipend and ' +
+          'a signing bonus of up to $20,000 per year. The range for this role is $150,000 - $180,000.',
+      ),
+    ).toEqual([
+      {
+        label: 'Salary',
+        salaryMin: 150000,
+        salaryMax: 180000,
+        salaryCurrency: 'USD',
+        salaryPeriod: 'year',
+      },
+    ]);
+    expect(
+      parseSalaries('$120k - $150k per year, or $60 - $75 per hour as a contractor'),
+    ).toHaveLength(1);
+  });
+
+  it('returns nothing for text without pay', () => {
+    expect(parseSalaries('Founded in 2010 with 500 - 1,000 customers.')).toEqual([]);
+    expect(parseSalaries(undefined)).toEqual([]);
   });
 });
 
