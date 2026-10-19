@@ -7,6 +7,7 @@ import { JOB_STATUSES, type JobQuery, type JobStatus, type JobSummary } from '..
 import { InterestRating } from '../components/InterestRating';
 import { JobFilters } from '../components/JobFilters';
 import { PageHeader } from '../components/PageHeader';
+import { TagList } from '../components/Tags';
 import { Button, ButtonLink } from '../components/ui/Button';
 import { Alert, errorText } from '../components/ui/feedback';
 import { PageSpinner } from '../components/ui/Spinner';
@@ -168,6 +169,7 @@ function BoardCard({ job }: { job: JobSummary }) {
           <InterestRating value={job.interest} size="sm" />
         </div>
       )}
+      <TagList tags={job.tags} className="mt-2" />
     </Link>
   );
 }
