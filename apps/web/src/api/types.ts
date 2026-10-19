@@ -13,6 +13,23 @@ export const JOB_STATUSES = [
 ] as const;
 export type JobStatus = (typeof JOB_STATUSES)[number];
 
+/** Statuses that mean the application is still in progress (server `ACTIVE_STATUSES`). */
+export const ACTIVE_STATUSES: readonly JobStatus[] = [
+  'saved',
+  'applied',
+  'screening',
+  'interviewing',
+  'offer',
+];
+
+/** Statuses that mean the employer responded positively (server `RESPONDED_STATUSES`). */
+export const RESPONDED_STATUSES: readonly JobStatus[] = [
+  'screening',
+  'interviewing',
+  'offer',
+  'accepted',
+];
+
 export const WORKPLACE_TYPES = ['remote', 'hybrid', 'onsite'] as const;
 export type WorkplaceType = (typeof WORKPLACE_TYPES)[number];
 

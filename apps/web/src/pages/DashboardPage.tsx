@@ -37,11 +37,14 @@ import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { usePreferences, useStats, useUpdatePreferences, useViewedHunt } from '../api/hooks';
 import {
+  ACTIVE_STATUSES,
   DASHBOARD_CARDS,
   JOB_STATUSES,
+  RESPONDED_STATUSES,
   type DashboardCard,
   type DashboardLayout,
   type JobHunt,
+  type JobStatus,
   type Stats,
 } from '../api/types';
 import { describeEvent } from '../components/EventDescription';
@@ -54,6 +57,9 @@ import { PageSpinner } from '../components/ui/Spinner';
 import { cn } from '../lib/cn';
 import { formatDate, formatDateTime, formatRelative } from '../lib/format';
 import { STATUS_LABELS, STATUS_STYLES } from '../lib/labels';
+
+/** The Jobs list filtered to the given statuses. */
+const jobsWithStatus = (statuses: readonly JobStatus[]) => `/jobs?status=${statuses.join(',')}`;
 
 /**
  * What each dashboard card shows, given the stats of the hunt on screen. `wide` cards take half
@@ -71,23 +77,35 @@ const CARDS: Record<
         label="Active"
         value={stats.active}
         hint={`${stats.total} tracked`}
+        to={jobsWithStatus(ACTIVE_STATUSES)}
       />
     ),
   },
   applied: {
     title: 'Applied',
     render: (stats) => (
-      <StatTile icon={<Send />} label="Applied" value={stats.applied} hint="Applications sent" />
+      // The server counts jobs with an applied date, so a job still marked "saved" with a
+      // hand-entered date is in the number but not in this list. Close enough.
+      <StatTile
+        icon={<Send />}
+        label="Applied"
+        value={stats.applied}
+        hint="Applications sent"
+        to={jobsWithStatus(JOB_STATUSES.filter((status) => status !== 'saved'))}
+      />
     ),
   },
   response_rate: {
     title: 'Response rate',
     render: (stats) => (
+      // The rate also counts jobs that reached one of these statuses before being rejected, so
+      // the list can be shorter than the numerator.
       <StatTile
         icon={<MessagesSquare />}
         label="Response rate"
         value={stats.responseRate === null ? '–' : `${Math.round(stats.responseRate * 100)}%`}
         hint={`${stats.byStatus.screening + stats.byStatus.interviewing} in progress`}
+        to={jobsWithStatus(RESPONDED_STATUSES)}
       />
     ),
   },
@@ -99,6 +117,7 @@ const CARDS: Record<
         label="Offers"
         value={stats.byStatus.offer + stats.byStatus.accepted}
         hint={`${stats.byStatus.accepted} accepted`}
+        to={jobsWithStatus(['offer', 'accepted'])}
       />
     ),
   },
@@ -380,7 +399,7 @@ function EditableCard({
         isDragging && 'z-10 opacity-80 shadow-xl',
       )}
     >
-      <div className="pointer-events-none h-full select-none" aria-hidden>
+      <div className="pointer-events-none h-full select-none" aria-hidden inert>
         {children}
       </div>
       <div className="absolute top-2 right-2 flex items-center gap-1 rounded-lg bg-white/90 p-0.5 shadow-sm ring-1 ring-zinc-200 backdrop-blur dark:bg-zinc-900/90 dark:ring-zinc-700">
@@ -412,14 +431,22 @@ function StatTile({
   label,
   value,
   hint,
+  to,
 }: {
   icon: ReactNode;
   label: string;
-  value: ReactNode;
+  value: string | number;
   hint: string;
+  /** Where the tile leads: the Jobs list filtered to the jobs behind the number. */
+  to?: string;
 }) {
-  return (
-    <Card className="flex h-full items-start gap-4 p-5">
+  const card = (
+    <Card
+      className={cn(
+        'flex h-full items-start gap-4 p-5',
+        to && 'transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/60',
+      )}
+    >
       <div className="rounded-lg bg-indigo-50 p-2.5 text-indigo-600 dark:bg-indigo-950 dark:text-indigo-400 [&>svg]:size-5">
         {icon}
       </div>
@@ -429,6 +456,12 @@ function StatTile({
         <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">{hint}</p>
       </div>
     </Card>
+  );
+  if (!to) return card;
+  return (
+    <Link to={to} className="block h-full rounded-xl" aria-label={`${label}, ${value}`}>
+      {card}
+    </Link>
   );
 }
 
