@@ -1,4 +1,4 @@
-import type { JobDraft } from '../job-draft.js';
+import { salaryFromRanges, type JobDraft, type SalaryRange } from '../job-draft.js';
 import type { JobParser, PageContext } from '../job-parser.js';
 import {
   cleanText,
@@ -8,6 +8,14 @@ import {
   toCalendarDate,
 } from '../normalize.js';
 
+interface GreenhousePayRange {
+  /** The employer's name for the range, usually where it applies ("USA - CA, NY"). */
+  title?: string;
+  min_cents?: number;
+  max_cents?: number;
+  currency_type?: string;
+}
+
 interface GreenhouseJob {
   title?: string;
   company_name?: string;
@@ -15,7 +23,7 @@ interface GreenhouseJob {
   content?: string;
   absolute_url?: string;
   first_published?: string;
-  pay_input_ranges?: { min_cents?: number; max_cents?: number; currency_type?: string }[];
+  pay_input_ranges?: GreenhousePayRange[];
 }
 
 /**
@@ -43,7 +51,6 @@ export class GreenhouseParser implements JobParser {
     );
     if (!job.title) return null;
 
-    const pay = job.pay_input_ranges?.[0];
     const location = cleanText(job.location?.name);
     return {
       title: cleanText(job.title),
@@ -53,12 +60,28 @@ export class GreenhouseParser implements JobParser {
       // The API returns entity-escaped HTML.
       description: htmlToMarkdown(job.content && decodeEntities(job.content)),
       postedOn: toCalendarDate(job.first_published),
-      salaryMin: pay?.min_cents ? Math.round(pay.min_cents / 100) : undefined,
-      salaryMax: pay?.max_cents ? Math.round(pay.max_cents / 100) : undefined,
-      salaryCurrency: pay?.currency_type,
-      salaryPeriod: pay ? 'year' : undefined,
+      ...salaryFromRanges(GreenhouseParser.payRanges(job.pay_input_ranges)),
       url: job.absolute_url ?? page.url!.toString(),
     };
+  }
+
+  /** Employers list one range per pay transparency region, each with its own title. */
+  static payRanges(ranges: GreenhousePayRange[] | undefined): SalaryRange[] {
+    const dollars = (cents: number | undefined) => (cents ? Math.round(cents / 100) : undefined);
+    return (ranges ?? []).flatMap((range) => {
+      const salaryMin = dollars(range.min_cents);
+      const salaryMax = dollars(range.max_cents);
+      if (!salaryMin && !salaryMax) return [];
+      return [
+        {
+          label: cleanText(range.title),
+          salaryMin,
+          salaryMax,
+          salaryCurrency: range.currency_type,
+          salaryPeriod: 'year' as const,
+        },
+      ];
+    });
   }
 
   static boardAndJob(url: URL): { board: string; jobId: string } | undefined {

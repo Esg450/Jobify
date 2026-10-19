@@ -7,7 +7,9 @@ import {
   WORKPLACE_TYPES,
   type Job,
   type JobInput,
+  type SalaryRange,
 } from '../api/types';
+import { formatSalary } from '../lib/format';
 import {
   EMPLOYMENT_LABELS,
   SALARY_PERIOD_LABELS,
@@ -47,9 +49,10 @@ type FormValues = Record<
   string
 > & { interest: number | null; tags: string[] };
 
+const text = (value: string | number | null | undefined) =>
+  value === null || value === undefined ? '' : String(value);
+
 function toFormValues(job: Partial<Job>): FormValues {
-  const text = (value: string | number | null | undefined) =>
-    value === null || value === undefined ? '' : String(value);
   return {
     title: text(job.title),
     company: text(job.company),
@@ -76,9 +79,10 @@ function toFormValues(job: Partial<Job>): FormValues {
   };
 }
 
+const optional = (value: string) => value.trim() || null;
+const number = (value: string) => (value.trim() ? Math.round(Number(value)) : null);
+
 function toJobInput(values: FormValues): JobInput {
-  const optional = (value: string) => value.trim() || null;
-  const number = (value: string) => (value.trim() ? Math.round(Number(value)) : null);
   const hasSalary = Boolean(values.salaryMin.trim() || values.salaryMax.trim());
 
   return {
@@ -109,8 +113,30 @@ function toJobInput(values: FormValues): JobInput {
   };
 }
 
+/** Whether the salary fields currently hold this range. */
+function holdsRange(values: FormValues, range: SalaryRange): boolean {
+  return (
+    number(values.salaryMin) === (range.salaryMin ?? null) &&
+    number(values.salaryMax) === (range.salaryMax ?? null) &&
+    (optional(values.salaryCurrency)?.toUpperCase() ?? null) ===
+      (range.salaryCurrency?.toUpperCase() ?? null) &&
+    (!range.salaryPeriod || values.salaryPeriod === range.salaryPeriod)
+  );
+}
+
+function describeRange(range: SalaryRange, index: number): string {
+  const amount = formatSalary({
+    salaryMin: range.salaryMin ?? null,
+    salaryMax: range.salaryMax ?? null,
+    salaryCurrency: range.salaryCurrency ?? null,
+    salaryPeriod: range.salaryPeriod ?? null,
+  });
+  return `${range.label ?? `Range ${index + 1}`}: ${amount ?? 'not stated'}`;
+}
+
 interface JobFormProps {
-  initial: Partial<Job>;
+  /** Imported drafts may carry several pay ranges for the user to choose between. */
+  initial: Partial<Job> & { salaryRanges?: SalaryRange[] };
   submitLabel: string;
   submitting: boolean;
   error?: string;
@@ -140,6 +166,18 @@ export function JobForm({
     event.preventDefault();
     onSubmit(toJobInput(values));
   };
+
+  // A posting that quotes a range per location leaves the salary for the user to choose.
+  const ranges = initial.salaryRanges ?? [];
+  const chosenRange = ranges.findIndex((range) => holdsRange(values, range));
+  const chooseRange = (range: SalaryRange) =>
+    setValues((current) => ({
+      ...current,
+      salaryMin: text(range.salaryMin),
+      salaryMax: text(range.salaryMax),
+      salaryCurrency: text(range.salaryCurrency),
+      salaryPeriod: text(range.salaryPeriod ?? 'year'),
+    }));
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-6">
@@ -190,6 +228,31 @@ export function JobForm({
             )}
           </Field>
         </div>
+        {ranges.length > 1 && (
+          <Field
+            label="Pay range"
+            hint="This posting lists a range per location. Pick the one that applies to you, or type your own below."
+            className="sm:col-span-2"
+          >
+            {(id) => (
+              <Select
+                id={id}
+                value={chosenRange === -1 ? '' : String(chosenRange)}
+                onChange={(event) => {
+                  const range = ranges[Number(event.target.value)];
+                  if (range) chooseRange(range);
+                }}
+              >
+                <option value="">Choose a range…</option>
+                {ranges.map((range, index) => (
+                  <option key={index} value={index}>
+                    {describeRange(range, index)}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </Field>
+        )}
         <div className="grid grid-cols-2 gap-4 sm:col-span-2 sm:grid-cols-4">
           <Field label="Salary from">
             {(id) => (

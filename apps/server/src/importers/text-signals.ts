@@ -3,6 +3,7 @@
  * a wrong value is worse than an empty one, since the user reviews the draft either way.
  */
 import type { EmploymentType, SalaryPeriod, WorkplaceType } from '../jobs/job.constants.js';
+import type { SalaryRange } from './job-draft.js';
 import { cleanText, normalizeEmploymentType } from './normalize.js';
 
 const CURRENCY_CODES: Record<string, string> = {
@@ -84,13 +85,19 @@ function periodFrom(text: string, min: number): SalaryPeriod {
   return min < 400 ? 'hour' : 'year';
 }
 
-/** Finds the first salary or salary range in a piece of text. */
-export function parseSalary(text: string | undefined | null): SalaryDetails | undefined {
-  if (!text) return undefined;
+interface SalaryMatch extends SalaryDetails {
+  start: number;
+  end: number;
+  plausible: boolean;
+}
 
+/** The earliest salary mention at or after `from`, whether or not it looks like real pay. */
+function matchSalary(text: string, from: number): SalaryMatch | undefined {
+  const rest = text.slice(from);
+  let best: SalaryMatch | undefined;
   for (const [index, pattern] of SALARY_PATTERNS.entries()) {
-    const match = pattern.exec(text);
-    if (!match) continue;
+    const match = pattern.exec(rest);
+    if (!match || (best && from + match.index >= best.start)) continue;
 
     let currency: string;
     let min: number;
@@ -106,17 +113,111 @@ export function parseSalary(text: string | undefined | null): SalaryDetails | un
     }
 
     const period = periodFrom(match[0], min);
-    const plausible = period === 'hour' ? min >= 5 && min < 2000 : min >= 500 && min < 5_000_000;
-    if (!plausible || (max !== undefined && max < min)) continue;
-
-    return {
+    const plausible =
+      (period === 'hour' ? min >= 5 && min < 2000 : min >= 500 && min < 5_000_000) &&
+      (max === undefined || max >= min);
+    best = {
+      start: from + match.index,
+      end: from + match.index + match[0].length,
+      plausible,
       salaryMin: min,
       salaryMax: max,
       salaryCurrency: CURRENCY_CODES[currency.toLowerCase()] ?? currency.toUpperCase(),
       salaryPeriod: period,
     };
   }
-  return undefined;
+  return best;
+}
+
+/** Finds the first salary or salary range in a piece of text. */
+export function parseSalary(text: string | undefined | null): SalaryDetails | undefined {
+  const [first] = parseSalaries(text);
+  if (!first) return undefined;
+  const { salaryMin, salaryMax, salaryCurrency, salaryPeriod } = first;
+  return { salaryMin, salaryMax, salaryCurrency, salaryPeriod };
+}
+
+/**
+ * Finds every salary range in a piece of text that could be an alternative to the first
+ * one: postings often quote one range per location ("CA, WA, NY: $195k - $255k; all other
+ * states: $173k - $233k"). Each range carries the label the text gave it, when there was
+ * one. Figures that are not comparable with the first, such as a stipend or a bonus, are
+ * left out, and a range repeated later in the text is listed once.
+ */
+export function parseSalaries(text: string | undefined | null): (SalaryDetails & SalaryRange)[] {
+  if (!text) return [];
+  const ranges: (SalaryDetails & SalaryRange)[] = [];
+  let cursor = 0;
+  let previousEnd = 0;
+  for (let found = matchSalary(text, cursor); found; found = matchSalary(text, cursor)) {
+    cursor = found.end;
+    if (!found.plausible) continue;
+    const { start, end, plausible, ...salary } = found;
+    const label = rangeLabel(text.slice(previousEnd, start));
+    previousEnd = end;
+    if (ranges.length && !comparable(ranges[0], salary)) continue;
+    if (ranges.some((range) => sameSalary(range, salary))) continue;
+    ranges.push({ label, ...salary });
+  }
+  return ranges;
+}
+
+function sameSalary(a: SalaryDetails, b: SalaryDetails): boolean {
+  return (
+    a.salaryMin === b.salaryMin &&
+    a.salaryMax === b.salaryMax &&
+    a.salaryCurrency === b.salaryCurrency &&
+    a.salaryPeriod === b.salaryPeriod
+  );
+}
+
+/** Location-based ranges share a currency and period and sit within a factor of two. */
+function comparable(a: SalaryDetails, b: SalaryDetails): boolean {
+  if (a.salaryCurrency !== b.salaryCurrency || a.salaryPeriod !== b.salaryPeriod) return false;
+  if ((a.salaryMax === undefined) !== (b.salaryMax === undefined)) return false;
+  const x = a.salaryMin ?? a.salaryMax ?? 0;
+  const y = b.salaryMin ?? b.salaryMax ?? 0;
+  return x <= y * 2 && y <= x * 2;
+}
+
+const PAY_WORDS = /\b(?:pay|salary|salaries|compensation|range|base|rate|wage)\b/i;
+
+const PERIOD_WORDS =
+  /\b(?:(?:per|a|an|each)\s+(?:year|yr|annum|month|mo|week|wk|day|hour|hr)|annually|yearly|monthly|weekly|daily|hourly)\b/gi;
+
+/**
+ * The words that introduce a salary range, taken from the text just before it: the last
+ * line or sentence, or the parenthetical that ends it ("USA base pay range (CA, WA, NY)
+ * per year:" gives "CA, WA, NY"). Undefined when nothing short and specific is there.
+ */
+function rangeLabel(preceding: string): string | undefined {
+  const line = preceding.split('\n').pop() ?? '';
+  // A sentence ends after a word, not after an abbreviation such as "U.S.".
+  let text = line.split(/(?<=[a-z0-9]{2}[.!?])\s+(?=[A-Z])/).pop() ?? '';
+
+  // "USA base pay range (CA, WA, NY) per year:" is about the parenthetical; "Zone 1 (SF)" is not.
+  const parenthetical = /\(([^()]+)\)([^()]*)$/.exec(text);
+  if (parenthetical) {
+    const before = text.slice(0, parenthetical.index);
+    const after = parenthetical[2].replace(PERIOD_WORDS, '');
+    if (!/\p{L}/u.test(after) && (!/\p{L}/u.test(before) || PAY_WORDS.test(before))) {
+      text = parenthetical[1];
+    }
+  }
+
+  text = text
+    .replace(/[*_#>|`]+/g, ' ')
+    .replace(/^\s*(?:[-•]|\d+[.)])\s+/, '')
+    .replace(PERIOD_WORDS, '')
+    .replace(/\s+/g, ' ')
+    .replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N})]+$/gu, '')
+    .replace(/^(?:and|or|while|whereas|but)\s+/i, '')
+    .replace(
+      /\s+(?:is|are|of|at|from|between|to|will be|would be|ranges?(?: from)?|starts? at)$/i,
+      '',
+    )
+    .trim();
+  return text && text.length <= 80 ? text : undefined;
 }
 
 /** Words that mean a page or title is about a company's job listings rather than one job. */
