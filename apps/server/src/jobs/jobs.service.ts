@@ -1,7 +1,13 @@
-import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { and, asc, desc, eq, getTableColumns, inArray, like, or, sql, type SQL } from 'drizzle-orm';
 import { today } from '../common/dates.js';
-import { DATABASE, type Database } from '../database/database.module.js';
+import { DATABASE, type Database, type Executor } from '../database/database.module.js';
 import { jobEvents, jobHunts, jobs, type Job, type JobEvent } from '../database/schema.js';
 import { HuntsService } from '../hunts/hunts.service.js';
 import type { JobStatus } from './job.constants.js';
@@ -71,6 +77,11 @@ export class JobsService {
     ];
     if (query.status?.length) filters.push(inArray(jobs.status, query.status));
     if (query.workplaceType?.length) filters.push(inArray(jobs.workplaceType, query.workplaceType));
+    if (query.tags?.length) {
+      filters.push(
+        sql`exists (select 1 from json_each(${jobs.tags}) where value in ${query.tags})`,
+      );
+    }
     if (query.q) {
       const pattern = `%${query.q}%`;
       filters.push(
@@ -281,30 +292,91 @@ export class JobsService {
     return event;
   }
 
+  /**
+   * Edits an event. Manual events are free-form; a status change can move to another status or
+   * another time, and the created event can only move in time. After a change to the status
+   * history the chain of changes is relinked and the job's status follows the last step.
+   */
   async updateEvent(
     userId: number,
     jobId: number,
     eventId: number,
     dto: UpdateJobEventDto,
   ): Promise<JobEvent> {
-    await this.assertOwned(userId, jobId);
+    const existing = await this.findEvent(userId, jobId, eventId);
+    const manual = existing.type !== 'created' && existing.type !== 'status_change';
+    if (!manual && (dto.type !== undefined || dto.title !== undefined || dto.body !== undefined)) {
+      throw new BadRequestException('Only the time of a status event can be edited');
+    }
+    if (dto.toStatus !== undefined && existing.type !== 'status_change') {
+      throw new BadRequestException('Only a status change has a status');
+    }
+
     const { occurredAt, ...rest } = dto;
-    const [event] = await this.db
-      .update(jobEvents)
-      .set({ ...rest, ...(occurredAt && { occurredAt: new Date(occurredAt) }) })
-      .where(and(eq(jobEvents.id, eventId), eq(jobEvents.jobId, jobId)))
-      .returning();
+    const changes = { ...rest, ...(occurredAt && { occurredAt: new Date(occurredAt) }) };
+    if (Object.keys(changes).length === 0) return existing;
+    await this.db.transaction(async (tx) => {
+      await tx.update(jobEvents).set(changes).where(eq(jobEvents.id, eventId));
+      if (existing.type === 'status_change') await this.relinkStatusHistory(tx, jobId);
+    });
+    return this.findEvent(userId, jobId, eventId);
+  }
+
+  /**
+   * Deletes an event. Removing a status change takes that step out of the history: the next
+   * change starts from where this one did, and if it was the last step the job goes back to
+   * the status it had before. The created event cannot be deleted.
+   */
+  async removeEvent(userId: number, jobId: number, eventId: number): Promise<void> {
+    const existing = await this.findEvent(userId, jobId, eventId);
+    if (existing.type === 'created') {
+      throw new BadRequestException('The created event cannot be deleted');
+    }
+    await this.db.transaction(async (tx) => {
+      await tx.delete(jobEvents).where(eq(jobEvents.id, eventId));
+      if (existing.type === 'status_change') await this.relinkStatusHistory(tx, jobId);
+    });
+  }
+
+  private async findEvent(userId: number, jobId: number, eventId: number): Promise<JobEvent> {
+    await this.assertOwned(userId, jobId);
+    const event = await this.db.query.jobEvents.findFirst({
+      where: and(eq(jobEvents.id, eventId), eq(jobEvents.jobId, jobId)),
+    });
     if (!event) throw new NotFoundException(`Event ${eventId} not found`);
     return event;
   }
 
-  async removeEvent(userId: number, jobId: number, eventId: number): Promise<void> {
-    await this.assertOwned(userId, jobId);
-    const deleted = await this.db
-      .delete(jobEvents)
-      .where(and(eq(jobEvents.id, eventId), eq(jobEvents.jobId, jobId)))
-      .returning({ id: jobEvents.id });
-    if (deleted.length === 0) throw new NotFoundException(`Event ${eventId} not found`);
+  /**
+   * Makes the status history a single chain again after a step was edited or removed: every
+   * status change starts from the previous step's status (the created event's for the first),
+   * and the job's status is the last step's. Jobs from before the created event was recorded
+   * keep their first step's origin.
+   */
+  private async relinkStatusHistory(tx: Executor, jobId: number): Promise<void> {
+    const events = await tx
+      .select({
+        id: jobEvents.id,
+        type: jobEvents.type,
+        fromStatus: jobEvents.fromStatus,
+        toStatus: jobEvents.toStatus,
+      })
+      .from(jobEvents)
+      .where(and(eq(jobEvents.jobId, jobId), inArray(jobEvents.type, ['created', 'status_change'])))
+      .orderBy(asc(jobEvents.occurredAt), asc(jobEvents.id));
+
+    const created = events.find((event) => event.type === 'created');
+    const changes = events.filter((event) => event.type === 'status_change');
+    let status = created?.toStatus ?? changes[0]?.fromStatus ?? null;
+    for (const change of changes) {
+      if (status && change.fromStatus !== status) {
+        await tx.update(jobEvents).set({ fromStatus: status }).where(eq(jobEvents.id, change.id));
+      }
+      status = change.toStatus ?? status;
+    }
+    if (status) {
+      await tx.update(jobs).set({ status, updatedAt: new Date() }).where(eq(jobs.id, jobId));
+    }
   }
 
   private static owned(userId: number, id: number): SQL {

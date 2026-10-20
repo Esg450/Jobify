@@ -19,6 +19,36 @@ describe('enrichDraft', () => {
     });
   });
 
+  it('leaves the salary empty when the description lists a range per location', () => {
+    const draft = enrichDraft({
+      title: 'Engineer',
+      company: 'Acme',
+      description:
+        'USA base pay range (CA, WA, NY) per year: $195,000 - $255,000\n\n' +
+        'USA base pay range (all other U.S. states) per year: $173,000 - $233,000',
+    });
+    expect(draft.salaryMin).toBeUndefined();
+    expect(draft.salaryMax).toBeUndefined();
+    expect(draft.salaryRanges).toMatchObject([
+      { label: 'CA, WA, NY', salaryMin: 195000, salaryMax: 255000 },
+      { label: 'all other U.S. states', salaryMin: 173000, salaryMax: 233000 },
+    ]);
+  });
+
+  it('keeps a parser salary but still offers the other ranges in the description', () => {
+    const draft = enrichDraft({
+      title: 'Engineer',
+      company: 'Acme',
+      salaryMin: 195000,
+      salaryMax: 255000,
+      salaryCurrency: 'USD',
+      salaryPeriod: 'year',
+      description: 'New York: $195,000 - $255,000. Elsewhere: $173,000 - $233,000.',
+    });
+    expect(draft).toMatchObject({ salaryMin: 195000, salaryMax: 255000 });
+    expect(draft.salaryRanges).toHaveLength(2);
+  });
+
   it('never overwrites what a parser found', () => {
     const draft = enrichDraft({
       title: 'Engineer',

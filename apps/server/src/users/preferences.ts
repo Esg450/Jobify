@@ -17,13 +17,28 @@ export interface DashboardLayout {
   hidden: DashboardCard[];
 }
 
+/** The optional columns of the Jobs table. The role column always shows. */
+export const JOB_COLUMNS = [
+  'status',
+  'location',
+  'salary',
+  'tags',
+  'interest',
+  'applied',
+  'updated',
+] as const;
+export type JobColumn = (typeof JOB_COLUMNS)[number];
+
 /** Per-user UI settings. Kept in the database so they follow the user between browsers. */
 export interface UserPreferences {
   dashboard: DashboardLayout;
+  /** Stored as the hidden ones so columns added later show up by default. */
+  hiddenJobColumns: JobColumn[];
 }
 
 export const DEFAULT_PREFERENCES: UserPreferences = {
   dashboard: { order: [...DASHBOARD_CARDS], hidden: [] },
+  hiddenJobColumns: [],
 };
 
 /**

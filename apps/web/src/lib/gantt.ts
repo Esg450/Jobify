@@ -45,14 +45,14 @@ function calendarDate(value: string): Date {
 
 /**
  * Turns a job's status history into bar segments. A bar starts on the day the job was
- * applied for (or saved), changes colour at every status change, and ends on the day it
- * reached a final status, or today while the application is still open.
+ * applied for, or the day it was added when it was saved first, changes colour at every
+ * status change, and ends on the day it reached a final status, or today while the
+ * application is still open.
  */
 export function buildGanttRows(jobs: TimelineJob[], today = new Date()): GanttRow[] {
   const end = startOfDay(today);
 
   const rows = jobs.map((job): GanttRow => {
-    const start = startOfDay(job.appliedOn ? calendarDate(job.appliedOn) : new Date(job.createdAt));
     const created = job.events.find((event) => event.type === 'created');
     const statusChanges = job.events.filter(
       (event) => event.type === 'status_change' && event.toStatus,
@@ -61,9 +61,19 @@ export function buildGanttRows(jobs: TimelineJob[], today = new Date()): GanttRo
       status: event.toStatus!,
       date: startOfDay(new Date(event.occurredAt)),
     }));
+    const initialStatus: JobStatus =
+      created?.toStatus ?? statusChanges[0]?.fromStatus ?? job.status;
+    // appliedOn is set on the first move out of "saved", so for a job that started as saved it
+    // marks the end of the saved stretch, not the start of the bar; that stretch began on the
+    // day the job was added.
+    const addedOn = startOfDay(created ? new Date(created.occurredAt) : new Date(job.createdAt));
+    const start =
+      initialStatus === 'saved' || !job.appliedOn
+        ? addedOn
+        : startOfDay(calendarDate(job.appliedOn));
 
     const segments: GanttSegment[] = [];
-    let currentStatus: JobStatus = created?.toStatus ?? statusChanges[0]?.fromStatus ?? job.status;
+    let currentStatus = initialStatus;
     let currentStart = start;
     for (const change of changes) {
       const at = change.date < currentStart ? currentStart : change.date;
@@ -73,10 +83,7 @@ export function buildGanttRows(jobs: TimelineJob[], today = new Date()): GanttRo
     }
     // Final statuses end the bar on the day they were reached (or, for jobs added to Jobify
     // already in that state, the day they were added); open ones run to today.
-    const reachedOn =
-      changes.length > 0
-        ? currentStart
-        : startOfDay(created ? new Date(created.occurredAt) : new Date(job.createdAt));
+    const reachedOn = changes.length > 0 ? currentStart : addedOn;
     const barEnd = FINAL_STATUSES.includes(job.status)
       ? new Date(Math.max(reachedOn.getTime(), currentStart.getTime()))
       : end;

@@ -4,7 +4,7 @@ import {
   companyFromAboutHeading,
   employmentTypeFromText,
   locationFromText,
-  parseSalary,
+  parseSalaries,
   splitPageTitle,
   workplaceTypeFromText,
 } from './text-signals.js';
@@ -37,9 +37,16 @@ export function enrichDraft(draft: JobDraft): JobDraft {
     normalizeEmploymentType(titleEmploymentHint(result.title)) ??
     employmentTypeFromText(description);
 
-  if (!result.salaryMin && !result.salaryMax) {
-    const salary = parseSalary(description);
-    if (salary) Object.assign(result, salary);
+  if (!result.salaryRanges) {
+    const ranges = parseSalaries(description);
+    if (ranges.length > 1) {
+      // Several ranges, usually one per location: the user picks the one that applies to
+      // them instead of the first one being taken as the salary.
+      result.salaryRanges = ranges;
+    } else if (ranges.length === 1 && !result.salaryMin && !result.salaryMax) {
+      const { salaryMin, salaryMax, salaryCurrency, salaryPeriod } = ranges[0];
+      Object.assign(result, { salaryMin, salaryMax, salaryCurrency, salaryPeriod });
+    }
   }
 
   return result;

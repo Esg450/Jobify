@@ -13,6 +13,23 @@ export const JOB_STATUSES = [
 ] as const;
 export type JobStatus = (typeof JOB_STATUSES)[number];
 
+/** Statuses that mean the application is still in progress (server `ACTIVE_STATUSES`). */
+export const ACTIVE_STATUSES: readonly JobStatus[] = [
+  'saved',
+  'applied',
+  'screening',
+  'interviewing',
+  'offer',
+];
+
+/** Statuses that mean the employer responded positively (server `RESPONDED_STATUSES`). */
+export const RESPONDED_STATUSES: readonly JobStatus[] = [
+  'screening',
+  'interviewing',
+  'offer',
+  'accepted',
+];
+
 export const WORKPLACE_TYPES = ['remote', 'hybrid', 'onsite'] as const;
 export type WorkplaceType = (typeof WORKPLACE_TYPES)[number];
 
@@ -139,9 +156,33 @@ export interface JobQuery {
   q?: string;
   status?: JobStatus[];
   workplaceType?: WorkplaceType[];
+  /** Jobs with any of these tags. */
+  tags?: string[];
   archived?: boolean;
   sort?: JobSortField;
   order?: 'asc' | 'desc';
+}
+
+/** Mirrors the server's TAG_COLORS. */
+export const TAG_COLORS = [
+  'gray',
+  'red',
+  'orange',
+  'amber',
+  'green',
+  'teal',
+  'sky',
+  'blue',
+  'violet',
+  'pink',
+] as const;
+export type TagColor = (typeof TAG_COLORS)[number];
+
+export interface Tag {
+  name: string;
+  color: TagColor;
+  /** How many of the user's jobs (in any hunt) carry it. */
+  count: number;
 }
 
 export interface EventInput {
@@ -149,6 +190,18 @@ export interface EventInput {
   title?: string | null;
   body?: string | null;
   occurredAt?: string;
+}
+
+/**
+ * Changes to an existing event. Manual events take everything but `toStatus`; a status change
+ * takes `toStatus` and `occurredAt`; the created event takes only `occurredAt`.
+ */
+export interface EventUpdate {
+  type?: ManualEventType;
+  title?: string | null;
+  body?: string | null;
+  occurredAt?: string;
+  toStatus?: JobStatus;
 }
 
 /** A job with the history the timeline chart needs. */
@@ -189,6 +242,16 @@ export interface Stats {
   })[];
 }
 
+/** One of several pay ranges a posting lists, usually by the candidate's location. */
+export interface SalaryRange {
+  /** Who the range applies to, e.g. "CA, WA, NY, NJ, CT", when the posting says. */
+  label?: string;
+  salaryMin?: number;
+  salaryMax?: number;
+  salaryCurrency?: string;
+  salaryPeriod?: SalaryPeriod;
+}
+
 export type JobDraft = Partial<
   Pick<
     Job,
@@ -207,7 +270,10 @@ export type JobDraft = Partial<
     | 'postedOn'
     | 'deadlineOn'
   >
->;
+> & {
+  /** Set instead of the salary when the posting lists several ranges, for the user to pick from. */
+  salaryRanges?: SalaryRange[];
+};
 
 export interface ImportRequest {
   url?: string;
@@ -423,8 +489,21 @@ export interface DashboardLayout {
   hidden: DashboardCard[];
 }
 
+/** Mirrors the server's JOB_COLUMNS: the optional columns of the Jobs table. */
+export const JOB_COLUMNS = [
+  'status',
+  'location',
+  'salary',
+  'tags',
+  'interest',
+  'applied',
+  'updated',
+] as const;
+export type JobColumn = (typeof JOB_COLUMNS)[number];
+
 export interface Preferences {
   dashboard: DashboardLayout;
+  hiddenJobColumns: JobColumn[];
 }
 
 export type UserRole = 'admin' | 'user';

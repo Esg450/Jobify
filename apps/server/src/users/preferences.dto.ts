@@ -1,6 +1,12 @@
 import { Type } from 'class-transformer';
 import { IsArray, IsIn, IsOptional, ValidateNested } from 'class-validator';
-import { DASHBOARD_CARDS, type DashboardCard, type DashboardLayout } from './preferences.js';
+import {
+  DASHBOARD_CARDS,
+  JOB_COLUMNS,
+  type DashboardCard,
+  type DashboardLayout,
+  type JobColumn,
+} from './preferences.js';
 
 export class DashboardLayoutDto implements DashboardLayout {
   @IsArray()
@@ -17,4 +23,9 @@ export class PreferencesDto {
   @ValidateNested()
   @Type(() => DashboardLayoutDto)
   dashboard?: DashboardLayoutDto;
+
+  @IsOptional()
+  @IsArray()
+  @IsIn(JOB_COLUMNS, { each: true })
+  hiddenJobColumns?: JobColumn[];
 }

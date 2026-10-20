@@ -748,7 +748,8 @@ function draftSalary(draft: JobDraft): string | null {
 
 function ResultRow({ result, onOpen }: { result: SearchResult; onOpen: () => void }) {
   const { draft, existing } = result;
-  const salary = draftSalary(draft);
+  const salary =
+    draftSalary(draft) ?? ((draft.salaryRanges?.length ?? 0) > 1 ? 'Pay varies by location' : null);
   const details = [
     draft.location,
     draft.workplaceType && WORKPLACE_LABELS[draft.workplaceType],

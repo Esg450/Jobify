@@ -4,7 +4,9 @@ import { jobHunts, jobs } from '../database/schema.js';
 import { createTestDatabase, type TestDatabase } from '../database/testing.js';
 import { HuntsService } from '../hunts/hunts.service.js';
 import { SettingsService } from '../settings/settings.service.js';
+import { plainToInstance } from 'class-transformer';
 import { DASHBOARD_CARDS } from './preferences.js';
+import { PreferencesDto } from './preferences.dto.js';
 import { UsersService } from './users.service.js';
 
 describe('UsersService', () => {
@@ -105,6 +107,7 @@ describe('UsersService', () => {
 
     await expect(users.getPreferences(alice.id)).resolves.toEqual({
       dashboard: { order: [...DASHBOARD_CARDS], hidden: [] },
+      hiddenJobColumns: [],
     });
 
     const saved = await users.updatePreferences(alice.id, {
@@ -115,5 +118,46 @@ describe('UsersService', () => {
     expect([...saved.dashboard.order].sort()).toEqual([...DASHBOARD_CARDS].sort());
     expect(saved.dashboard.hidden).toEqual(['weekly']);
     await expect(users.getPreferences(alice.id)).resolves.toEqual(saved);
+  });
+
+  it('stores which job list columns a user hides', async () => {
+    const alice = await users.create({ username: 'alice', password: 'password123' });
+
+    const saved = await users.updatePreferences(alice.id, { hiddenJobColumns: ['salary', 'tags'] });
+    expect(saved.hiddenJobColumns).toEqual(['salary', 'tags']);
+    // Saving one setting keeps the others.
+    await users.updatePreferences(alice.id, { dashboard: { order: [], hidden: ['weekly'] } });
+    expect((await users.getPreferences(alice.id)).hiddenJobColumns).toEqual(['salary', 'tags']);
+  });
+
+  it('keeps the other setting when the body is a validated DTO instance', async () => {
+    const alice = await users.create({ username: 'alice', password: 'password123' });
+    // The ValidationPipe (transform: true) hands over a class instance whose absent fields are
+    // own properties set to undefined, which must not overwrite what is saved.
+    await users.updatePreferences(
+      alice.id,
+      plainToInstance(PreferencesDto, { hiddenJobColumns: ['salary'] }),
+    );
+    await users.updatePreferences(
+      alice.id,
+      plainToInstance(PreferencesDto, { dashboard: { order: [], hidden: ['weekly'] } }),
+    );
+    const saved = await users.getPreferences(alice.id);
+    expect(saved.hiddenJobColumns).toEqual(['salary']);
+
+    await users.updatePreferences(
+      alice.id,
+      plainToInstance(PreferencesDto, { hiddenJobColumns: ['tags'] }),
+    );
+    expect((await users.getPreferences(alice.id)).dashboard.hidden).toEqual(['weekly']);
+  });
+
+  it('ignores null settings, which @IsOptional lets through', async () => {
+    const alice = await users.create({ username: 'alice', password: 'password123' });
+    await users.updatePreferences(alice.id, { hiddenJobColumns: ['salary'] });
+    const body = { dashboard: null } as unknown as PreferencesDto;
+    await expect(users.updatePreferences(alice.id, body)).resolves.toMatchObject({
+      hiddenJobColumns: ['salary'],
+    });
   });
 });
