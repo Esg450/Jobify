@@ -23,6 +23,7 @@ import type {
   JobSummary,
   Preferences,
   Profile,
+  ResumeUpload,
   DuplicateJob,
   SearchCandidate,
   SearchQuery,
@@ -533,6 +534,24 @@ export function useUpdateProfile() {
   return useMutation({
     mutationFn: (profile: Partial<Profile>) => api.put<Profile>('/account/profile', profile),
     onSuccess: (profile) => queryClient.setQueryData(queryKeys.profile, profile),
+  });
+}
+
+/** Reads the text out of a resume file for the profile form. Nothing is saved. */
+export function useUploadResume() {
+  return useMutation({
+    mutationFn: (file: File) => {
+      const form = new FormData();
+      form.append('file', file, file.name);
+      return api.upload<ResumeUpload>('/account/profile/resume', form);
+    },
+  });
+}
+
+/** Asks the AI to repair the layout of resume text without changing its words. Nothing is saved. */
+export function useTidyResume() {
+  return useMutation({
+    mutationFn: (text: string) => api.post<{ text: string }>('/ai/resume/tidy', { text }),
   });
 }
 

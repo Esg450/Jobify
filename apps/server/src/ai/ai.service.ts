@@ -14,7 +14,15 @@ import {
   type UpdateAiSettingsDto,
 } from './ai-settings.js';
 import { parseExtractedJob } from './job-extraction.js';
-import { AI_TASK_FIELDS, buildExtractionPrompt, buildTaskPrompt, type AiTask } from './prompts.js';
+import { RESUME_MAX_LENGTH } from '../users/profile.constants.js';
+import { normalizeResumeText, truncateResumeText } from '../users/resume-text.js';
+import {
+  AI_TASK_FIELDS,
+  buildExtractionPrompt,
+  buildResumeTidyPrompt,
+  buildTaskPrompt,
+  type AiTask,
+} from './prompts.js';
 import { createAiProvider, validateAiSettings } from './provider-factory.js';
 import { AiProviderError, type CompletionRequest } from './providers/ai-provider.js';
 
@@ -105,6 +113,17 @@ export class AiService {
 
   async extractJob(pageText: string): Promise<JobDraft> {
     return parseExtractedJob(await this.complete(buildExtractionPrompt(pageText)));
+  }
+
+  /**
+   * Repairs the layout of resume text without changing its words. Returns the result for the
+   * user to review; nothing is saved until they save the profile.
+   */
+  async tidyResume(resume: string): Promise<string> {
+    const answer = await this.complete(buildResumeTidyPrompt(resume));
+    // Models sometimes wrap the whole answer in a code block despite being told not to.
+    const unfenced = answer.replace(/^```[a-z]*\n([\s\S]*?)\n```$/i, '$1');
+    return truncateResumeText(normalizeResumeText(unfenced), RESUME_MAX_LENGTH);
   }
 
   /** Runs a prompt against the configured provider. Errors become 400 or 502 like every AI call. */

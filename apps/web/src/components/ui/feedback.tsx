@@ -1,4 +1,4 @@
-import { CircleAlert, CircleCheck } from 'lucide-react';
+import { CircleAlert, CircleCheck, Info, TriangleAlert } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { cn } from '../../lib/cn';
 
@@ -27,26 +27,41 @@ export function EmptyState({
   );
 }
 
+type AlertTone = 'error' | 'warning' | 'success' | 'info';
+
+const ALERT_TONES: Record<AlertTone, { icon: typeof CircleAlert; className: string }> = {
+  error: {
+    icon: CircleAlert,
+    className: 'bg-rose-50 text-rose-800 dark:bg-rose-950/60 dark:text-rose-200',
+  },
+  warning: {
+    icon: TriangleAlert,
+    className: 'bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-200',
+  },
+  success: {
+    icon: CircleCheck,
+    className: 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-200',
+  },
+  info: {
+    icon: Info,
+    className: 'bg-indigo-50 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-200',
+  },
+};
+
 export function Alert({
   tone = 'error',
   children,
   className,
 }: {
-  tone?: 'error' | 'success';
+  tone?: AlertTone;
   children: ReactNode;
   className?: string;
 }) {
-  const Icon = tone === 'error' ? CircleAlert : CircleCheck;
+  const { icon: Icon, className: toneClass } = ALERT_TONES[tone];
   return (
     <div
       role={tone === 'error' ? 'alert' : 'status'}
-      className={cn(
-        'flex gap-2 rounded-lg px-3 py-2.5 text-sm',
-        tone === 'error'
-          ? 'bg-rose-50 text-rose-800 dark:bg-rose-950/60 dark:text-rose-200'
-          : 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-200',
-        className,
-      )}
+      className={cn('flex gap-2 rounded-lg px-3 py-2.5 text-sm', toneClass, className)}
     >
       <Icon aria-hidden className="mt-0.5 size-4 shrink-0" />
       <div>{children}</div>

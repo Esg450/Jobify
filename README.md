@@ -164,7 +164,10 @@ saving, and saving only succeeds once the provider or service answers.
 | OpenAI-compatible API | The API's base URL (for example OpenRouter, Groq, LM Studio or vLLM), a model and usually a key. |
 
 Add your resume and what you are looking for under **Settings → Your profile** to get cover letters
-and interview prep tailored to you. Job details and your profile are sent to the provider you
+and interview prep tailored to you. Paste the resume as text or upload it as a PDF, Word document
+or text file; only the extracted text is kept, and you can review it before saving. With an AI
+provider set up, **Tidy up with AI** repairs the layout of extracted text without changing its
+wording. Job details and your profile are sent to the provider you
 choose, and nowhere else.
 
 ## Importing jobs

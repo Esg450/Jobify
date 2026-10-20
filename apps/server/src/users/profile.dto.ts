@@ -1,5 +1,6 @@
 import { IsOptional, IsString, MaxLength } from 'class-validator';
 import type { UserProfile } from '../database/schema.js';
+import { RESUME_MAX_LENGTH } from './profile.constants.js';
 
 /** Information about the user that AI features use to personalize output. */
 export class ProfileDto implements Partial<UserProfile> {
@@ -15,7 +16,7 @@ export class ProfileDto implements Partial<UserProfile> {
 
   @IsOptional()
   @IsString()
-  @MaxLength(50_000)
+  @MaxLength(RESUME_MAX_LENGTH)
   resume?: string;
 
   @IsOptional()

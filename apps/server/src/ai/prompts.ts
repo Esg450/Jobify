@@ -131,6 +131,36 @@ Respond with a single JSON object and nothing else. Use these keys, omitting any
 }
 
 /**
+ * Asks for the resume's layout to be repaired without touching its content. Text pulled out of
+ * a PDF often has columns interleaved, lines broken mid-sentence and page furniture mixed in;
+ * this puts it back into reading order so the profile reads cleanly in every other prompt.
+ */
+export function buildResumeTidyPrompt(resume: string): CompletionRequest {
+  return {
+    system: SYSTEM_PROMPT,
+    maxTokens: 16_000,
+    prompt: `Clean up the layout of the resume below. The text was extracted from a file, so \
+columns may be interleaved, lines broken mid-sentence, and page headers, footers or page numbers \
+mixed in.
+
+<resume>
+${resume}
+</resume>
+
+Rules:
+- Keep every word of the content. Do not add, remove, summarize, reword, correct or reorder \
+information; the only reordering allowed is restoring the document's original reading order.
+- Restore the structure: each section heading on its own line, one bullet per line starting \
+with "- ", a blank line between sections, and contact details on separate lines.
+- Join words and sentences that were split across lines or pages, and drop page numbers, \
+running headers and footers and other extraction artifacts.
+- Return plain text, not Markdown: no code fences, no "#" headings, no bold or italics.
+
+Return only the cleaned resume.`,
+  };
+}
+
+/**
  * Asks for a handful of job board searches that fit the candidate. Boards match on title words
  * and search one phrase at a time, so the useful answer is several short title-like phrases
  * rather than one long keyword string.

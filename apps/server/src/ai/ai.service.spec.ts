@@ -107,3 +107,47 @@ describe('AiService settings', () => {
     );
   });
 });
+
+describe('AiService.tidyResume', () => {
+  let database: TestDatabase;
+  let service: AiService;
+
+  beforeEach(async () => {
+    database = await createTestDatabase();
+    const hunts = new HuntsService(database.db);
+    const settings = new SettingsService(database.db);
+    service = new AiService(
+      config,
+      settings,
+      new JobsService(database.db, hunts),
+      new UsersService(database.db, settings, hunts),
+    );
+    fetchMock.mockReset();
+    vi.stubGlobal('fetch', fetchMock);
+    reply('ready');
+    await service.updateSettings({
+      provider: 'openai_compatible',
+      model: 'm',
+      baseUrl: 'http://llm:1/v1',
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    database.client.close();
+  });
+
+  it('sends the resume and returns the cleaned text without a code fence', async () => {
+    reply('```text\nJANE DOE\r\n\r\n\r\n- Built things  \n```');
+    expect(await service.tidyResume('Jane Doe Built things')).toBe('JANE DOE\n\n- Built things');
+    const body = JSON.parse(String(fetchMock.mock.lastCall![1]?.body)) as {
+      messages: { content: string }[];
+    };
+    expect(body.messages.at(-1)?.content).toContain('<resume>\nJane Doe Built things\n</resume>');
+  });
+
+  it('needs a provider', async () => {
+    await service.updateSettings({ provider: null });
+    await expect(service.tidyResume('Jane')).rejects.toThrow(BadRequestException);
+  });
+});
