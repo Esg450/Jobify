@@ -1,9 +1,15 @@
-import { CalendarClock, CircleDot, Flag, Plus, StickyNote, Trash2 } from 'lucide-react';
+import { CalendarClock, CircleDot, Flag, Pencil, Plus, StickyNote, Trash2 } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
-import { useAddEvent, useDeleteEvent } from '../api/hooks';
-import type { JobEvent, JobEventType, ManualEventType } from '../api/types';
+import { useAddEvent, useDeleteEvent, useUpdateEvent } from '../api/hooks';
+import {
+  JOB_STATUSES,
+  type JobEvent,
+  type JobEventType,
+  type JobStatus,
+  type ManualEventType,
+} from '../api/types';
 import { formatDateTime } from '../lib/format';
-import { EVENT_LABELS } from '../lib/labels';
+import { EVENT_LABELS, STATUS_LABELS } from '../lib/labels';
 import { describeEvent } from './EventDescription';
 import { Button } from './ui/Button';
 import { Card, CardHeader } from './ui/Card';
@@ -21,14 +27,22 @@ const EVENT_ICONS: Record<JobEventType, typeof CircleDot> = {
 
 const MANUAL_TYPES: ManualEventType[] = ['interview', 'note', 'follow_up'];
 
-/** Local date-time string suitable for <input type="datetime-local">. */
-function nowLocal(): string {
-  const now = new Date();
-  return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+function isManual(type: JobEventType): type is ManualEventType {
+  return MANUAL_TYPES.includes(type as ManualEventType);
 }
+
+/** Local date-time string suitable for <input type="datetime-local">. */
+function toLocal(date: Date): string {
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+}
+
+const ACTION_CLASSES =
+  'rounded p-1 text-zinc-400 opacity-0 group-hover:opacity-100 focus:opacity-100';
 
 export function Timeline({ jobId, events }: { jobId: number; events: JobEvent[] }) {
   const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState<JobEvent | null>(null);
+  const [removing, setRemoving] = useState<JobEvent | null>(null);
   const deleteEvent = useDeleteEvent(jobId);
 
   return (
@@ -66,21 +80,33 @@ export function Timeline({ jobId, events }: { jobId: number; events: JobEvent[] 
                       </span>
                     )}
                   </p>
-                  {MANUAL_TYPES.includes(event.type as ManualEventType) && (
+                  <div className="flex shrink-0">
                     <button
                       type="button"
-                      onClick={() => deleteEvent.mutate(event.id)}
-                      className="rounded p-1 text-zinc-400 opacity-0 group-hover:opacity-100 hover:text-rose-600 focus:opacity-100"
-                      aria-label="Delete event"
+                      onClick={() => setEditing(event)}
+                      className={`${ACTION_CLASSES} hover:text-zinc-700 dark:hover:text-zinc-200`}
+                      aria-label="Edit event"
                     >
-                      <Trash2 className="size-3.5" />
+                      <Pencil className="size-3.5" />
                     </button>
-                  )}
+                    {event.type !== 'created' && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          event.type === 'status_change'
+                            ? setRemoving(event)
+                            : deleteEvent.mutate(event.id)
+                        }
+                        className={`${ACTION_CLASSES} hover:text-rose-600`}
+                        aria-label="Delete event"
+                      >
+                        <Trash2 className="size-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                  {event.type !== 'created' &&
-                    event.type !== 'status_change' &&
-                    `${EVENT_LABELS[event.type]} · `}
+                  {isManual(event.type) && `${EVENT_LABELS[event.type]} · `}
                   {formatDateTime(event.occurredAt)}
                 </p>
                 {event.body && (
@@ -94,6 +120,15 @@ export function Timeline({ jobId, events }: { jobId: number; events: JobEvent[] 
         })}
       </ol>
       <AddEventModal jobId={jobId} open={adding} onClose={() => setAdding(false)} />
+      {editing && <EditEventModal jobId={jobId} event={editing} onClose={() => setEditing(null)} />}
+      {removing && (
+        <RemoveStepModal
+          jobId={jobId}
+          event={removing}
+          events={events}
+          onClose={() => setRemoving(null)}
+        />
+      )}
     </Card>
   );
 }
@@ -110,14 +145,14 @@ function AddEventModal({
   const addEvent = useAddEvent(jobId);
   const [type, setType] = useState<ManualEventType>('interview');
   const [title, setTitle] = useState('');
-  const [occurredAt, setOccurredAt] = useState(nowLocal);
+  const [occurredAt, setOccurredAt] = useState(() => toLocal(new Date()));
   const [body, setBody] = useState('');
 
   const close = () => {
     addEvent.reset();
     setTitle('');
     setBody('');
-    setOccurredAt(nowLocal());
+    setOccurredAt(toLocal(new Date()));
     onClose();
   };
 
@@ -154,17 +189,7 @@ function AddEventModal({
               </Select>
             )}
           </Field>
-          <Field label="When">
-            {(id) => (
-              <Input
-                id={id}
-                type="datetime-local"
-                required
-                value={occurredAt}
-                onChange={(event) => setOccurredAt(event.target.value)}
-              />
-            )}
-          </Field>
+          <WhenField value={occurredAt} onChange={setOccurredAt} />
         </div>
         <Field label="Title">
           {(id) => (
@@ -194,5 +219,186 @@ function AddEventModal({
         </div>
       </form>
     </Modal>
+  );
+}
+
+/**
+ * Edits one event. A manual event is fully editable; a status step can change where it moved
+ * the job to and when; the created event only when.
+ */
+function EditEventModal({
+  jobId,
+  event,
+  onClose,
+}: {
+  jobId: number;
+  event: JobEvent;
+  onClose: () => void;
+}) {
+  const updateEvent = useUpdateEvent(jobId);
+  const manual = isManual(event.type);
+  const [type, setType] = useState<ManualEventType>(isManual(event.type) ? event.type : 'note');
+  const [title, setTitle] = useState(event.title ?? '');
+  const [body, setBody] = useState(event.body ?? '');
+  const [occurredAt, setOccurredAt] = useState(() => toLocal(new Date(event.occurredAt)));
+  const [toStatus, setToStatus] = useState<JobStatus>(event.toStatus ?? 'saved');
+
+  const submit = (formEvent: FormEvent) => {
+    formEvent.preventDefault();
+    updateEvent.mutate(
+      {
+        eventId: event.id,
+        occurredAt: new Date(occurredAt).toISOString(),
+        ...(manual && { type, title: title.trim() || null, body: body.trim() || null }),
+        ...(event.type === 'status_change' && { toStatus }),
+      },
+      { onSuccess: onClose },
+    );
+  };
+
+  return (
+    <Modal open title={manual ? 'Edit event' : 'Edit step'} onClose={onClose}>
+      <form onSubmit={submit} className="flex flex-col gap-4">
+        {updateEvent.isError && <Alert>{errorText(updateEvent.error)}</Alert>}
+        {event.type === 'status_change' && (
+          <p className="text-sm text-zinc-600 dark:text-zinc-300">
+            Changing where this step goes also updates the step after it and, if this is the latest
+            step, the job's status.
+          </p>
+        )}
+        <div className="grid gap-4 sm:grid-cols-2">
+          {manual && (
+            <Field label="Type">
+              {(id) => (
+                <Select
+                  id={id}
+                  value={type}
+                  onChange={(changeEvent) => setType(changeEvent.target.value as ManualEventType)}
+                >
+                  {MANUAL_TYPES.map((value) => (
+                    <option key={value} value={value}>
+                      {EVENT_LABELS[value]}
+                    </option>
+                  ))}
+                </Select>
+              )}
+            </Field>
+          )}
+          {event.type === 'status_change' && (
+            <Field label="Moved to">
+              {(id) => (
+                <Select
+                  id={id}
+                  value={toStatus}
+                  onChange={(changeEvent) => setToStatus(changeEvent.target.value as JobStatus)}
+                >
+                  {JOB_STATUSES.map((value) => (
+                    <option key={value} value={value}>
+                      {STATUS_LABELS[value]}
+                    </option>
+                  ))}
+                </Select>
+              )}
+            </Field>
+          )}
+          <WhenField value={occurredAt} onChange={setOccurredAt} />
+        </div>
+        {manual && (
+          <>
+            <Field label="Title">
+              {(id) => (
+                <Input
+                  id={id}
+                  value={title}
+                  onChange={(changeEvent) => setTitle(changeEvent.target.value)}
+                />
+              )}
+            </Field>
+            <Field label="Details">
+              {(id) => (
+                <Textarea
+                  id={id}
+                  rows={4}
+                  value={body}
+                  onChange={(changeEvent) => setBody(changeEvent.target.value)}
+                />
+              )}
+            </Field>
+          </>
+        )}
+        <div className="flex justify-end gap-2">
+          <Button onClick={onClose}>Cancel</Button>
+          <Button type="submit" variant="primary" loading={updateEvent.isPending}>
+            Save
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+/** Confirms removing a status step, since that rewrites the history and may change the job's status. */
+function RemoveStepModal({
+  jobId,
+  event,
+  events,
+  onClose,
+}: {
+  jobId: number;
+  event: JobEvent;
+  events: JobEvent[];
+  onClose: () => void;
+}) {
+  const deleteEvent = useDeleteEvent(jobId);
+  // Events arrive newest first, so the latest step is the first status change in the list.
+  const latest = events.find((candidate) => candidate.type === 'status_change')?.id === event.id;
+  const previous = event.fromStatus ? STATUS_LABELS[event.fromStatus] : null;
+
+  return (
+    <Modal
+      open
+      title="Remove this step?"
+      onClose={onClose}
+      footer={
+        <>
+          <Button onClick={onClose}>Cancel</Button>
+          <Button
+            variant="danger"
+            loading={deleteEvent.isPending}
+            onClick={() => deleteEvent.mutate(event.id, { onSuccess: onClose })}
+          >
+            Remove
+          </Button>
+        </>
+      }
+    >
+      {deleteEvent.isError && <Alert className="mb-3">{errorText(deleteEvent.error)}</Alert>}
+      <p className="text-sm text-zinc-600 dark:text-zinc-300">
+        “{describeEvent(event)}” will be taken out of the history.{' '}
+        {latest
+          ? previous
+            ? `The job goes back to ${previous.toLowerCase()}.`
+            : 'The job goes back to its previous status.'
+          : previous
+            ? `The next step will start from ${previous.toLowerCase()} instead.`
+            : 'The next step will start from where this one did.'}
+      </p>
+    </Modal>
+  );
+}
+
+function WhenField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  return (
+    <Field label="When">
+      {(id) => (
+        <Input
+          id={id}
+          type="datetime-local"
+          required
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      )}
+    </Field>
   );
 }

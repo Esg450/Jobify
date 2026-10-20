@@ -192,6 +192,18 @@ export interface EventInput {
   occurredAt?: string;
 }
 
+/**
+ * Changes to an existing event. Manual events take everything but `toStatus`; a status change
+ * takes `toStatus` and `occurredAt`; the created event takes only `occurredAt`.
+ */
+export interface EventUpdate {
+  type?: ManualEventType;
+  title?: string | null;
+  body?: string | null;
+  occurredAt?: string;
+  toStatus?: JobStatus;
+}
+
 /** A job with the history the timeline chart needs. */
 export interface TimelineJob {
   id: number;
