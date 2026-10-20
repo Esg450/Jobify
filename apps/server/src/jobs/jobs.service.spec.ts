@@ -1,4 +1,4 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { today } from '../common/dates.js';
 import { createTestDatabase, type TestDatabase } from '../database/testing.js';
@@ -219,6 +219,60 @@ describe('JobsService', () => {
     await expect(
       jobs.create(bob, { title: 'Sous chef', company: 'Bistro', huntId: later.id }),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('takes a status change out of the history and puts the job back where it was', async () => {
+    const { id } = await jobs.create(alice, { title: 'Engineer', company: 'Acme' });
+    await jobs.update(alice, id, { status: 'applied' });
+    await jobs.update(alice, id, { status: 'interviewing' });
+    const changes = (status: string) =>
+      jobs.findOne(alice, id).then((job) =>
+        job.events
+          .filter((event) => event.type === 'status_change')
+          .map((event) => `${event.fromStatus}>${event.toStatus}`)
+          .reverse()
+          .concat(status === 'with job' ? [job.status] : []),
+      );
+    expect(await changes('with job')).toEqual([
+      'saved>applied',
+      'applied>interviewing',
+      'interviewing',
+    ]);
+
+    // Removing the last step reverts the job's status.
+    const job = await jobs.findOne(alice, id);
+    const last = job.events.find((event) => event.toStatus === 'interviewing')!;
+    await jobs.removeEvent(alice, id, last.id);
+    expect(await changes('with job')).toEqual(['saved>applied', 'applied']);
+
+    // Removing a middle step relinks the following one.
+    await jobs.update(alice, id, { status: 'offer' });
+    const middle = (await jobs.findOne(alice, id)).events.find(
+      (event) => event.toStatus === 'applied',
+    )!;
+    await jobs.removeEvent(alice, id, middle.id);
+    expect(await changes('with job')).toEqual(['saved>offer', 'offer']);
+
+    // Editing a step's status does the same, and the created event is permanent.
+    const step = (await jobs.findOne(alice, id)).events.find(
+      (event) => event.type === 'status_change',
+    )!;
+    const edited = await jobs.updateEvent(alice, id, step.id, { toStatus: 'rejected' });
+    expect(edited.toStatus).toBe('rejected');
+    expect(await changes('with job')).toEqual(['saved>rejected', 'rejected']);
+    await expect(jobs.updateEvent(alice, id, step.id, { title: 'Nope' })).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    const created = (await jobs.findOne(alice, id)).events.find(
+      (event) => event.type === 'created',
+    )!;
+    await expect(jobs.removeEvent(alice, id, created.id)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    await expect(
+      jobs.updateEvent(alice, id, created.id, { toStatus: 'applied' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(jobs.removeEvent(bob, id, step.id)).rejects.toBeInstanceOf(NotFoundException);
   });
 
   it('manages timeline events and deletes them with the job', async () => {

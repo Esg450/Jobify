@@ -11,6 +11,7 @@ import type {
   AuthStatus,
   ChatMessage,
   EventInput,
+  EventUpdate,
   HuntInput,
   HuntSummary,
   ImportRequest,
@@ -367,12 +368,26 @@ export function useAddEvent(jobId: number) {
   });
 }
 
+export function useUpdateEvent(jobId: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ eventId, ...input }: EventUpdate & { eventId: number }) =>
+      api.patch(`/jobs/${jobId}/events/${eventId}`, input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.job(jobId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.jobs });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.stats });
+    },
+  });
+}
+
 export function useDeleteEvent(jobId: number) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (eventId: number) => api.delete(`/jobs/${jobId}/events/${eventId}`),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.job(jobId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.jobs });
       void queryClient.invalidateQueries({ queryKey: queryKeys.stats });
     },
   });
