@@ -120,6 +120,12 @@ export const jobs = sqliteTable(
     aiSummary: text('ai_summary'),
     coverLetter: text('cover_letter'),
     interviewPrep: text('interview_prep'),
+    /**
+     * Candidate details for this job only, such as a tailored resume. Each field that is filled
+     * in replaces the same field of the user's profile in the AI features; blank fields fall
+     * back to the profile (`profileForJob`).
+     */
+    profile: text('profile', { mode: 'json' }).$type<Partial<UserProfile>>(),
     contactName: text('contact_name'),
     contactEmail: text('contact_email'),
     tags: text('tags', { mode: 'json' }).$type<string[]>().notNull().default([]),

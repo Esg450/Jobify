@@ -108,6 +108,61 @@ describe('AiService settings', () => {
   });
 });
 
+describe('AiService.runTask', () => {
+  let database: TestDatabase;
+  let service: AiService;
+  let jobs: JobsService;
+  let users: UsersService;
+  let alice: number;
+
+  beforeEach(async () => {
+    database = await createTestDatabase();
+    const hunts = new HuntsService(database.db);
+    const settings = new SettingsService(database.db);
+    jobs = new JobsService(database.db, hunts);
+    users = new UsersService(database.db, settings, hunts);
+    service = new AiService(config, settings, jobs, users);
+    alice = await database.createUser('alice');
+    fetchMock.mockReset();
+    vi.stubGlobal('fetch', fetchMock);
+    reply('ready');
+    await service.updateSettings({
+      provider: 'openai_compatible',
+      model: 'm',
+      baseUrl: 'http://llm:1/v1',
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    database.client.close();
+  });
+
+  const lastPrompt = () => {
+    const body = JSON.parse(String(fetchMock.mock.lastCall![1]?.body)) as {
+      messages: { content: string }[];
+    };
+    return body.messages.at(-1)!.content;
+  };
+
+  it('writes the cover letter from the profile, or from the details saved on the job', async () => {
+    await users.updateProfile(alice, { name: 'Alice', resume: 'General resume' });
+    const job = await jobs.create(alice, { title: 'Engineer', company: 'Acme', description: 'x' });
+
+    reply('Dear team');
+    expect(await service.runTask(alice, job.id, 'cover-letter')).toMatchObject({
+      coverLetter: 'Dear team',
+    });
+    expect(lastPrompt()).toContain('General resume');
+
+    await jobs.update(alice, job.id, { profile: { resume: 'Tailored resume' } });
+    await service.runTask(alice, job.id, 'cover-letter');
+    expect(lastPrompt()).toContain('Name: Alice');
+    expect(lastPrompt()).toContain('Tailored resume');
+    expect(lastPrompt()).not.toContain('General resume');
+  });
+});
+
 describe('AiService.tidyResume', () => {
   let database: TestDatabase;
   let service: AiService;

@@ -42,6 +42,21 @@ export function describeProfile(profile: UserProfile): string | undefined {
   return parts.length ? `<candidate>\n${parts.join('\n')}\n</candidate>` : undefined;
 }
 
+/**
+ * The candidate as the AI should see them for one job: the user's profile, with any field the
+ * job's own details fill in on top. People who apply with several resumes keep the general one
+ * on their profile and attach the tailored one to the job; blank fields fall back to the profile.
+ */
+export function profileForJob(profile: UserProfile, job: Pick<Job, 'profile'>): UserProfile {
+  const result = { ...profile };
+  for (const key of Object.keys(profile) as (keyof UserProfile)[]) {
+    const value = job.profile?.[key];
+    // Blank or missing fields (and anything odd in an old backup) leave the profile's value.
+    if (typeof value === 'string' && value.trim()) result[key] = value.trim();
+  }
+  return result;
+}
+
 const TASK_INSTRUCTIONS: Record<AiTask, (hasProfile: boolean) => string> = {
   summary: (
     hasProfile,
@@ -97,7 +112,7 @@ Experiences from the candidate's background that map well to this role.`
 };
 
 export function buildTaskPrompt(task: AiTask, job: Job, profile: UserProfile): CompletionRequest {
-  const candidate = describeProfile(profile);
+  const candidate = describeProfile(profileForJob(profile, job));
   return {
     system: SYSTEM_PROMPT,
     prompt: [describeJob(job), candidate, TASK_INSTRUCTIONS[task](Boolean(candidate))]
