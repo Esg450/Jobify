@@ -1,5 +1,5 @@
 import { CalendarClock, CircleDot, Flag, Pencil, Plus, StickyNote, Trash2 } from 'lucide-react';
-import { useState, type FormEvent } from 'react';
+import { useLayoutEffect, useRef, useState, type FormEvent } from 'react';
 import { useAddEvent, useDeleteEvent, useUpdateEvent } from '../api/hooks';
 import {
   JOB_STATUSES,
@@ -8,6 +8,7 @@ import {
   type JobStatus,
   type ManualEventType,
 } from '../api/types';
+import { cn } from '../lib/cn';
 import { formatDateTime } from '../lib/format';
 import { EVENT_LABELS, STATUS_LABELS } from '../lib/labels';
 import { describeEvent } from './EventDescription';
@@ -43,6 +44,7 @@ export function Timeline({ jobId, events }: { jobId: number; events: JobEvent[] 
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<JobEvent | null>(null);
   const [removing, setRemoving] = useState<JobEvent | null>(null);
+  const [viewing, setViewing] = useState<JobEvent | null>(null);
   const deleteEvent = useDeleteEvent(jobId);
 
   return (
@@ -72,7 +74,7 @@ export function Timeline({ jobId, events }: { jobId: number; events: JobEvent[] 
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-start justify-between gap-2">
-                  <p className="text-sm font-medium">
+                  <p className="min-w-0 text-sm font-medium wrap-anywhere">
                     {describeEvent(event)}
                     {upcoming && (
                       <span className="ml-2 rounded bg-indigo-50 px-1.5 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
@@ -105,15 +107,8 @@ export function Timeline({ jobId, events }: { jobId: number; events: JobEvent[] 
                     )}
                   </div>
                 </div>
-                <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                  {isManual(event.type) && `${EVENT_LABELS[event.type]} · `}
-                  {formatDateTime(event.occurredAt)}
-                </p>
-                {event.body && (
-                  <p className="mt-1 text-sm whitespace-pre-wrap text-zinc-600 dark:text-zinc-300">
-                    {event.body}
-                  </p>
-                )}
+                <EventMeta event={event} />
+                {event.body && <EventBody body={event.body} onExpand={() => setViewing(event)} />}
               </div>
             </li>
           );
@@ -121,6 +116,16 @@ export function Timeline({ jobId, events }: { jobId: number; events: JobEvent[] 
       </ol>
       <AddEventModal jobId={jobId} open={adding} onClose={() => setAdding(false)} />
       {editing && <EditEventModal jobId={jobId} event={editing} onClose={() => setEditing(null)} />}
+      {viewing && (
+        <EventDetailsModal
+          event={viewing}
+          onEdit={() => {
+            setViewing(null);
+            setEditing(viewing);
+          }}
+          onClose={() => setViewing(null)}
+        />
+      )}
       {removing && (
         <RemoveStepModal
           jobId={jobId}
@@ -130,6 +135,92 @@ export function Timeline({ jobId, events }: { jobId: number; events: JobEvent[] 
         />
       )}
     </Card>
+  );
+}
+
+/** The type (for manual events) and date under an event's title. */
+function EventMeta({ event, className }: { event: JobEvent; className?: string }) {
+  return (
+    <p className={cn('text-xs text-zinc-500 dark:text-zinc-400', className)}>
+      {isManual(event.type) && `${EVENT_LABELS[event.type]} · `}
+      {formatDateTime(event.occurredAt)}
+    </p>
+  );
+}
+
+/**
+ * The details of an event, cut to a few lines so a long note doesn't take over the timeline.
+ * When text is hidden, a button opens the full details.
+ */
+function EventBody({ body, onExpand }: { body: string; onExpand: () => void }) {
+  const text = useRef<HTMLParagraphElement>(null);
+  const [clamped, setClamped] = useState(false);
+
+  useLayoutEffect(() => {
+    const element = text.current;
+    if (!element) return;
+    const measure = () => setClamped(element.scrollHeight > element.clientHeight + 1);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [body]);
+
+  return (
+    <>
+      <p
+        ref={text}
+        className="mt-1 line-clamp-3 text-sm break-words whitespace-pre-wrap text-zinc-600 dark:text-zinc-300"
+      >
+        {body}
+      </p>
+      {clamped && (
+        <button
+          type="button"
+          onClick={onExpand}
+          className="mt-1 text-xs font-medium text-indigo-600 hover:underline dark:text-indigo-400"
+        >
+          Show details
+        </button>
+      )}
+    </>
+  );
+}
+
+/** Shows one event in full, for details too long for the timeline. */
+function EventDetailsModal({
+  event,
+  onEdit,
+  onClose,
+}: {
+  event: JobEvent;
+  onEdit: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <Modal
+      open
+      title={describeEvent(event)}
+      onClose={onClose}
+      className="max-w-xl"
+      footer={
+        <>
+          <Button icon={<Pencil className="size-3.5" />} onClick={onEdit}>
+            Edit
+          </Button>
+          <Button variant="primary" onClick={onClose}>
+            Close
+          </Button>
+        </>
+      }
+    >
+      <EventMeta event={event} />
+      {event.body && (
+        <p className="mt-3 max-h-[60vh] overflow-y-auto text-sm break-words whitespace-pre-wrap text-zinc-700 dark:text-zinc-200">
+          {event.body}
+        </p>
+      )}
+    </Modal>
   );
 }
 
