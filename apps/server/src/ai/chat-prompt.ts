@@ -1,5 +1,5 @@
 import type { Job, UserProfile } from '../database/schema.js';
-import { SYSTEM_PROMPT, describeJob, describeProfile } from './prompts.js';
+import { SYSTEM_PROMPT, describeJob, describeProfile, profileForJob } from './prompts.js';
 import type { ChatMessage, CompletionRequest } from './providers/ai-provider.js';
 
 /** Older turns are dropped so a long conversation does not grow without bound. */
@@ -27,7 +27,8 @@ export function buildChatRequest(
     SYSTEM_PROMPT,
     describeJob(job),
     summary && `<summary>\n${summary}\n</summary>`,
-    describeProfile(profile) ?? 'The candidate has not shared their background.',
+    describeProfile(profileForJob(profile, job)) ??
+      'The candidate has not shared their background.',
     CHAT_INSTRUCTIONS,
   ].filter(Boolean);
 

@@ -12,8 +12,10 @@ import {
   Max,
   MaxLength,
   Min,
+  ValidateNested,
 } from 'class-validator';
 import { IsCalendarDate } from '../../common/validators.js';
+import { ProfileDto } from '../../users/profile.dto.js';
 import {
   EMPLOYMENT_TYPES,
   JOB_STATUSES,
@@ -113,6 +115,12 @@ export class CreateJobDto {
   @IsString()
   @MaxLength(LONG_TEXT)
   interviewPrep?: string | null;
+
+  /** Candidate details for this job only; filled fields replace the profile's in AI prompts. */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ProfileDto)
+  profile?: ProfileDto | null;
 
   @IsOptional()
   @IsString()

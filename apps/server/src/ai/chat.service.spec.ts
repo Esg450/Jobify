@@ -65,6 +65,31 @@ describe('ChatService', () => {
     expect(await chat.list(alice, job.id)).toEqual(second);
   });
 
+  it("fills in the job's own details over the profile, field by field", async () => {
+    const job = await jobs.create(alice, {
+      title: 'Engineer',
+      company: 'Acme',
+      description: 'Build rockets',
+      profile: { resume: 'Tailored: rocket propulsion lead', headline: '  ' },
+    });
+    await users.updateProfile(alice, {
+      name: 'Alice',
+      headline: 'Generalist',
+      resume: 'General resume',
+    });
+
+    await chat.ask(alice, job.id, 'How do I fit?');
+    expect(requests[0].system).toContain('Name: Alice');
+    expect(requests[0].system).toContain('Headline: Generalist');
+    expect(requests[0].system).toContain('Tailored: rocket propulsion lead');
+    expect(requests[0].system).not.toContain('General resume');
+
+    // Clearing the override means the profile applies again.
+    await jobs.update(alice, job.id, { profile: null });
+    await chat.ask(alice, job.id, 'And now?');
+    expect(requests[1].system).toContain('General resume');
+  });
+
   it('only sends the most recent turns of a long conversation', async () => {
     const job = await jobs.create(alice, { title: 'Engineer', company: 'Acme', description: 'x' });
     for (let i = 0; i < CHAT_HISTORY_LIMIT; i++) await chat.ask(alice, job.id, `Question ${i}`);
