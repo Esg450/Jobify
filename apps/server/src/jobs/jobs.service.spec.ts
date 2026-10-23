@@ -29,6 +29,24 @@ describe('JobsService', () => {
     expect(job.events.map((event) => event.type)).toEqual(['created']);
   });
 
+  it('stores per-job profile details, clears them with null and keeps them off the list', async () => {
+    const job = await jobs.create(alice, { title: 'Engineer', company: 'Acme' });
+    expect(job.profile).toBeNull();
+
+    const tailored = await jobs.update(alice, job.id, { profile: { resume: 'Tailored' } });
+    expect(tailored.profile).toEqual({ resume: 'Tailored' });
+    expect(await jobs.list(alice, {})).toMatchObject([{ id: job.id }]);
+    expect((await jobs.list(alice, {}))[0]).not.toHaveProperty('profile');
+
+    // Other edits leave the details alone.
+    const renamed = await jobs.update(alice, job.id, { title: 'Senior Engineer' });
+    expect(renamed.profile).toEqual({ resume: 'Tailored' });
+
+    const cleared = await jobs.update(alice, job.id, { profile: null });
+    expect(cleared.profile).toBeNull();
+    expect((await jobs.findOne(alice, job.id)).profile).toBeNull();
+  });
+
   it('rejects a job that repeats an existing URL or title and company unless allowed', async () => {
     const original = await jobs.create(alice, {
       title: 'Engineer',

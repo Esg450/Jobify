@@ -23,12 +23,12 @@ import {
 } from './duplicates.js';
 
 /** Large text columns are left out of list responses to keep them small. */
-const { description, notes, aiSummary, coverLetter, interviewPrep, ...summaryColumns } =
+const { description, notes, aiSummary, coverLetter, interviewPrep, profile, ...summaryColumns } =
   getTableColumns(jobs);
 
 export type JobSummary = Omit<
   Job,
-  'description' | 'notes' | 'aiSummary' | 'coverLetter' | 'interviewPrep'
+  'description' | 'notes' | 'aiSummary' | 'coverLetter' | 'interviewPrep' | 'profile'
 >;
 export type JobWithEvents = Job & { events: JobEvent[] };
 

@@ -123,6 +123,8 @@ export interface Job extends JobSummary {
   aiSummary: string | null;
   coverLetter: string | null;
   interviewPrep: string | null;
+  /** Candidate details for this job only; filled fields replace the profile's in AI prompts. */
+  profile: Partial<Profile> | null;
   events: JobEvent[];
 }
 

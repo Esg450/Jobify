@@ -1,13 +1,30 @@
-import { Check, Copy, MessageSquare, RefreshCw, Sparkles } from 'lucide-react';
+import {
+  AlertTriangle,
+  Check,
+  Copy,
+  FileText,
+  MessageSquare,
+  RefreshCw,
+  Sparkles,
+} from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router';
-import { useAiSettings, useCurrentUser, useRunAiTask } from '../api/hooks';
-import type { AiTask, Job } from '../api/types';
+import {
+  useAiSettings,
+  useCurrentUser,
+  useProfile,
+  useRunAiTask,
+  useUpdateJob,
+} from '../api/hooks';
+import type { AiTask, Job, Profile } from '../api/types';
+import { cn } from '../lib/cn';
 import { AI_TASK_LABELS } from '../lib/labels';
 import { JobChat } from './JobChat';
 import { Markdown } from './Markdown';
+import { ResumeField } from './ResumeField';
 import { Button } from './ui/Button';
 import { Alert, EmptyState, errorText } from './ui/feedback';
+import { Field, Input, Textarea } from './ui/fields';
 
 const OUTPUT_TASKS: { task: Exclude<AiTask, 'description'>; field: keyof Job; hint: string }[] = [
   {
@@ -18,7 +35,7 @@ const OUTPUT_TASKS: { task: Exclude<AiTask, 'description'>; field: keyof Job; hi
   {
     task: 'cover-letter',
     field: 'coverLetter',
-    hint: 'A first draft based on the posting and your profile.',
+    hint: 'A first draft based on the posting and your resume.',
   },
   {
     task: 'interview-prep',
@@ -61,27 +78,30 @@ export function AiPanel({ job }: { job: Job }) {
   }
 
   const tabs = (
-    <div className="flex flex-wrap gap-2">
-      {OUTPUT_TASKS.map(({ task, field }) => (
+    <>
+      <div className="flex flex-wrap gap-2">
+        {OUTPUT_TASKS.map(({ task, field }) => (
+          <Button
+            key={task}
+            size="sm"
+            variant={selected === task ? 'primary' : 'secondary'}
+            onClick={() => setSelected(task)}
+          >
+            {AI_TASK_LABELS[task].title}
+            {job[field] && <Check className="size-3.5" aria-label="generated" />}
+          </Button>
+        ))}
         <Button
-          key={task}
           size="sm"
-          variant={selected === task ? 'primary' : 'secondary'}
-          onClick={() => setSelected(task)}
+          variant={selected === 'chat' ? 'primary' : 'secondary'}
+          icon={<MessageSquare className="size-3.5" />}
+          onClick={() => setSelected('chat')}
         >
-          {AI_TASK_LABELS[task].title}
-          {job[field] && <Check className="size-3.5" aria-label="generated" />}
+          Ask
         </Button>
-      ))}
-      <Button
-        size="sm"
-        variant={selected === 'chat' ? 'primary' : 'secondary'}
-        icon={<MessageSquare className="size-3.5" />}
-        onClick={() => setSelected('chat')}
-      >
-        Ask
-      </Button>
-    </div>
+      </div>
+      <JobProfileSection job={job} />
+    </>
   );
 
   if (selected === 'chat') {
@@ -140,6 +160,189 @@ export function AiPanel({ job }: { job: Job }) {
           </Button>
         </div>
       )}
+    </div>
+  );
+}
+
+const PROFILE_FIELDS: { key: keyof Profile; label: string }[] = [
+  { key: 'name', label: 'name' },
+  { key: 'headline', label: 'headline' },
+  { key: 'preferences', label: 'preferences' },
+  { key: 'resume', label: 'resume' },
+];
+
+const EMPTY_PROFILE: Profile = { name: '', headline: '', preferences: '', resume: '' };
+
+/** The job's own details with blanks (and anything that is not text) normalized to ''. */
+function jobProfile(job: Job): Profile {
+  const result = { ...EMPTY_PROFILE };
+  for (const { key } of PROFILE_FIELDS) {
+    const value = job.profile?.[key];
+    if (typeof value === 'string') result[key] = value.trim();
+  }
+  return result;
+}
+
+/** The fields the job fills in itself. */
+function overriddenFields(job: Job): (keyof Profile)[] {
+  const own = jobProfile(job);
+  return PROFILE_FIELDS.filter(({ key }) => own[key]).map(({ key }) => key);
+}
+
+function listFields(keys: (keyof Profile)[]): string {
+  const labels = keys.map((key) => PROFILE_FIELDS.find((field) => field.key === key)!.label);
+  return labels.length > 1
+    ? `${labels.slice(0, -1).join(', ')} and ${labels.at(-1)}`
+    : (labels[0] ?? '');
+}
+
+/**
+ * Who the AI thinks the candidate is on this page. The profile is the default; any field saved
+ * here replaces the same field of the profile for this job's summary, cover letter, interview
+ * prep and chat, which is how someone who applies with several resumes keeps each job on the
+ * right one. Blank fields fall back to the profile.
+ */
+function JobProfileSection({ job }: { job: Job }) {
+  const { data: profile } = useProfile();
+  const updateJob = useUpdateJob();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<Profile>(EMPTY_PROFILE);
+
+  // The row says whether the AI knows the candidate, so it waits for the profile to load
+  // rather than flashing the warning.
+  if (!profile) return null;
+
+  const overridden = overriddenFields(job);
+  const hasProfile = PROFILE_FIELDS.some(({ key }) => profile[key]?.trim());
+  const known = hasProfile || overridden.length > 0;
+
+  const save = (changes: Partial<Profile> | null) =>
+    updateJob.mutate(
+      { id: job.id, changes: { profile: changes } },
+      { onSuccess: () => setEditing(false) },
+    );
+
+  const open = () => {
+    updateJob.reset();
+    setDraft(jobProfile(job));
+    setEditing(true);
+  };
+
+  if (!editing) {
+    return (
+      <div
+        className={cn(
+          'flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-lg px-3 py-1.5 text-sm',
+          known
+            ? 'bg-zinc-50 text-zinc-600 dark:bg-zinc-800/60 dark:text-zinc-300'
+            : 'bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200',
+        )}
+      >
+        <span className="flex items-center gap-2">
+          {known ? (
+            <FileText className="size-4 shrink-0" aria-hidden />
+          ) : (
+            <AlertTriangle className="size-4 shrink-0" aria-hidden />
+          )}
+          {!known ? (
+            <span>
+              The AI knows nothing about you yet, so it cannot tailor anything. Fill in{' '}
+              <Link to="/settings/account" className="font-medium underline">
+                your profile
+              </Link>{' '}
+              or add details for this job.
+            </span>
+          ) : overridden.length === 0 ? (
+            'Using your profile.'
+          ) : hasProfile ? (
+            `Using the ${listFields(overridden)} saved for this job; the rest comes from your profile.`
+          ) : (
+            `Using the ${listFields(overridden)} saved for this job.`
+          )}
+        </span>
+        <div className="flex flex-wrap gap-1">
+          <Button size="sm" variant="ghost" onClick={open}>
+            {overridden.length > 0
+              ? 'Edit'
+              : known
+                ? 'Use different details'
+                : 'Add details for this job'}
+          </Button>
+          {overridden.length > 0 && (
+            <Button
+              size="sm"
+              variant="ghost"
+              loading={updateJob.isPending}
+              onClick={() => save(null)}
+            >
+              Use profile only
+            </Button>
+          )}
+        </div>
+        {updateJob.isError && <Alert className="w-full">{errorText(updateJob.error)}</Alert>}
+      </div>
+    );
+  }
+
+  const bind = (key: 'name' | 'headline' | 'preferences') => ({
+    value: draft[key],
+    placeholder: profile[key] ? `From your profile: ${profile[key]}` : undefined,
+    onChange: (event: { target: { value: string } }) =>
+      setDraft((current) => ({ ...current, [key]: event.target.value })),
+  });
+
+  return (
+    <div className="flex flex-col gap-4 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+      <div>
+        <h3 className="text-sm font-semibold">Details for this job</h3>
+        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+          Anything you fill in here replaces the same field of your profile for this job only. Blank
+          fields use your profile. Regenerate anything already written to pick it up.
+        </p>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Name">{(id) => <Input id={id} {...bind('name')} />}</Field>
+        <Field label="Headline">{(id) => <Input id={id} {...bind('headline')} />}</Field>
+      </div>
+      <Field label="What you're looking for">
+        {(id) => <Textarea id={id} rows={2} {...bind('preferences')} />}
+      </Field>
+      <ResumeField
+        label="Resume"
+        hint={
+          profile.resume
+            ? 'Leave this blank to use the resume on your profile.'
+            : 'Your profile has no resume yet, so this is the only one the AI will see for this job. PDF, Word document (.docx) or plain text.'
+        }
+        placeholder="Paste the resume you are sending for this job, or drop a file."
+
+        rows={8}
+        value={draft.resume}
+        onChange={(resume) => setDraft((current) => ({ ...current, resume }))}
+      />
+      {updateJob.isError && <Alert>{errorText(updateJob.error)}</Alert>}
+      <div className="flex justify-end gap-2">
+        <Button size="sm" disabled={updateJob.isPending} onClick={() => setEditing(false)}>
+          Cancel
+        </Button>
+        <Button
+          size="sm"
+          variant="primary"
+          loading={updateJob.isPending}
+          onClick={() => {
+            // Only filled fields are kept, so the saved object says exactly what is overridden.
+            const filled = Object.fromEntries(
+              PROFILE_FIELDS.flatMap(({ key }) => {
+                const value = draft[key].trim();
+                return value ? [[key, value]] : [];
+              }),
+            ) as Partial<Profile>;
+            save(Object.keys(filled).length ? filled : null);
+          }}
+        >
+          Save
+        </Button>
+      </div>
     </div>
   );
 }
